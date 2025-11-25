@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Stream {
+  id        String   @id @default(uuid())
+  streamId  String   @unique
+  title     String?
+  streamer  String
+  status    String   @default("offline")
+  createdAt DateTime @default(now())
+}
+
+model Tip {
+  id        String   @id @default(uuid())
+  txHash    String   @unique
+  from      String
+  to        String
+  streamId  String
+  token     String
+  amount    BigInt
+  memo      String?
+  createdAt DateTime @default(now())
+}
+
+model Balance {
+  id        String   @id @default(uuid())
+  address   String
+  token     String
+  amount    BigInt  @default(0)
+  updatedAt DateTime @updatedAt
+}

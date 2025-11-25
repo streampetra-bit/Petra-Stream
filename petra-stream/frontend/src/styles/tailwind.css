@@ -1,0 +1,258 @@
+/* src/styles/tailwind.css */
+
+/* 1) Fonts (Google) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 2) Default theme variables (Onchain Pulse as fallback)
+   Provide both hex and RGB tokens: Tailwind will use the -rgb tokens for alpha utilities.
+*/
+:root {
+  /* Onchain Pulse (default) */
+  --color-primary: #00A3FF;
+  --color-primary-rgb: 0 163 255;
+
+  --color-accent:  #7CFF6D;
+  --color-accent-rgb: 124 255 109;
+
+  --color-surface: #0B1A2B;
+  --color-surface-rgb: 11 26 43;
+
+  --color-bg:      #071028;
+  --color-bg-rgb: 7 16 40;
+
+  --color-text:    #E6F8FF;
+  --color-text-rgb: 230 248 255;
+
+  --color-glow: rgba(0,163,255,0.28);
+  --color-glow-rgb: 0 163 255;
+
+  /* utility tokens */
+  --glass-alpha: 0.12;
+  --card-radius: 1rem;
+}
+
+/* 3) Theme variants (toggle by adding class to <body>)
+   Each theme defines both the hex and the -rgb variables.
+*/
+.theme-onchain-pulse {
+  --color-primary: #00A3FF;
+  --color-primary-rgb: 0 163 255;
+
+  --color-accent: #7CFF6D;
+  --color-accent-rgb: 124 255 109;
+
+  --color-surface: #0B1A2B;
+  --color-surface-rgb: 11 26 43;
+
+  --color-bg: #071028;
+  --color-bg-rgb: 7 16 40;
+
+  --color-text: #E6F8FF;
+  --color-text-rgb: 230 248 255;
+
+  --color-glow-rgb: 0 163 255;
+  --color-glow: rgba(0,163,255,0.28);
+}
+
+.theme-neon-petra {
+  --color-primary: #FF4DFF;
+  --color-primary-rgb: 255 77 255;
+
+  --color-accent: #00FFF0;
+  --color-accent-rgb: 0 255 240;
+
+  --color-surface: #0F1224;
+  --color-surface-rgb: 15 18 36;
+
+  --color-bg: #070617;
+  --color-bg-rgb: 7 6 23;
+
+  --color-text: #E6F0FF;
+  --color-text-rgb: 230 240 255;
+
+  --color-glow: rgba(255,77,255,0.20);
+  --color-glow-rgb: 255 77 255;
+}
+
+.theme-midnight-ledger {
+  --color-primary: #0B1B3A;
+  --color-primary-rgb: 11 27 58;
+
+  --color-accent: #FFC857;
+  --color-accent-rgb: 255 200 87;
+
+  --color-surface: #0F2A44;
+  --color-surface-rgb: 15 42 68;
+
+  --color-bg: #020617;
+  --color-bg-rgb: 2 6 23;
+
+  --color-text: #F4F7FA;
+  --color-text-rgb: 244 247 250;
+
+  --color-glow: rgba(255,200,87,0.12);
+  --color-glow-rgb: 255 200 87;
+}
+
+/* include both spellings in case code references "crpto-glow" or "crypto-glow" */
+.theme-crpto-glow,
+.theme-crypto-glow {
+  --color-primary: #39FF14;
+  --color-primary-rgb: 57 255 20;
+
+  --color-accent: #8A2BE2;
+  --color-accent-rgb: 138 43 226;
+
+  --color-surface: #0A0A0A;
+  --color-surface-rgb: 10 10 10;
+
+  --color-bg: #000000;
+  --color-bg-rgb: 0 0 0;
+
+  --color-text: #EFFEED;
+  --color-text-rgb: 239 254 237;
+
+  --color-glow: rgba(57,255,20,0.18);
+  --color-glow-rgb: 57 255 20;
+}
+
+.theme-aurora-petra {
+  --color-primary: #00E5A8;
+  --color-primary-rgb: 0 229 168;
+
+  --color-accent: #7E5AFF;
+  --color-accent-rgb: 126 90 255;
+
+  --color-surface: #0D2233;
+  --color-surface-rgb: 13 34 51;
+
+  --color-bg: #071028;
+  --color-bg-rgb: 7 16 40;
+
+  --color-text: #FCFDFF;
+  --color-text-rgb: 252 253 255;
+
+  --color-glow: rgba(0,229,168,0.18);
+  --color-glow-rgb: 0 229 168;
+}
+
+.theme-prime-beauty {
+  /* Prime-beauty uses a gradient for bg; provide rgb fallbacks for utilities */
+  --color-primary: #7E5AFF;
+  --color-primary-rgb: 126 90 255;
+
+  --color-accent: #00FFF0;
+  --color-accent-rgb: 0 255 240;
+
+  --color-surface: rgba(10,12,20,0.45);
+  --color-surface-rgb: 10 12 20;
+
+  --color-bg: linear-gradient(135deg, #FF4DFF 0%, #00FFF0 18%, #00A3FF 36%, #7CFF6D 56%, #FFC857 76%, #39FF14 100%);
+  /* fallback rgb for utilities when gradient is used */
+  --color-bg-rgb: 7 16 40;
+
+  --color-text: #FFFFFF;
+  --color-text-rgb: 255 255 255;
+
+  --color-glow: rgba(255,77,255,0.20);
+  --color-glow-rgb: 255 77 255;
+}
+
+/* 4) Base element styles */
+@layer base {
+  html, body, #root { height: 100%; }
+
+  body {
+    @apply antialiased;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    /* prefer gradient bg when prime-beauty is active, else fallback to rgb/hex via var */
+    background: var(--color-bg);
+    color: rgb(var(--color-text-rgb));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* headings use display stack */
+  h1, h2, h3, h4 {
+    font-family: Poppins, Inter, sans-serif;
+    color: rgb(var(--color-primary-rgb));
+  }
+
+  a { color: rgb(var(--color-primary-rgb)); text-decoration: none; }
+
+  input, textarea, select, button { font-family: inherit; }
+}
+
+/* 5) Components & utilities (tailwind-friendly) */
+@layer components {
+  /* Primary button — uses css vars from theme (use rgb for predictable contrast when needed) */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition-transform;
+    background: rgb(var(--color-primary-rgb) / 1);
+    color: rgb(var(--color-bg-rgb) / 1);
+    box-shadow: 0 8px 30px rgba(var(--color-glow-rgb), 0.18);
+  }
+  .btn-primary:hover { transform: translateY(-3px) scale(1.01); }
+  .btn-primary:active { transform: translateY(-1px) scale(.995); }
+
+  /* Glass / frosted card (use for hero cards, side panels) */
+  .glass-card {
+    @apply rounded-lg p-6;
+    /* prefer a solid color with alpha using rgb token so Tailwind can generate opacity utilities if needed */
+    background: rgb(var(--color-surface-rgb) / 0.72);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.04);
+    box-shadow: 0 10px 30px rgba(2,6,12,0.6);
+  }
+
+  /* Neon ring utility for avatars / callouts */
+  .neon-ring {
+    box-shadow: 0 0 18px var(--color-glow), inset 0 0 8px color-mix(in srgb, var(--color-glow) 40%, transparent);
+    border-radius: 9999px;
+  }
+
+  /* subtle card for lists (streams, posts) */
+  .card {
+  /* Use Tailwind utilities for layout, but set border color explicitly for reliability */
+  @apply bg-surface/90 rounded-lg p-4 border;
+  /* border-white/4 -> rgba(255,255,255,0.04) */
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 6px 24px rgba(2,6,12,0.6);
+}
+
+
+  /* utility for prime-beauty hero overlay */
+  .hero-prime {
+    background-image: linear-gradient(135deg, #FF4DFF 0%, #00FFF0 18%, #00A3FF 36%, #7CFF6D 56%, #FFC857 76%, #39FF14 100%);
+    background-size: 180% 180%;
+    animation: moveGradient 9s linear infinite;
+  }
+
+  @keyframes moveGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+}
+
+/* 6) Extra utilities the UI will often use */
+@layer utilities {
+  /* tint overlay helper (darkens / brightens content for readability) */
+  .overlay-dim {
+    background: linear-gradient(180deg, rgba(2,6,12,0.48), rgba(2,6,12,0.64));
+  }
+
+  /* small neon outline (for focus states) */
+  .outline-neon:focus {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-glow) 12%, transparent);
+  }
+
+  /* text emphasis */
+  .muted { color: color-mix(in srgb, rgb(var(--color-text-rgb)) 60%, transparent); }
+  .subtle { color: color-mix(in srgb, rgb(var(--color-text-rgb)) 72%, transparent); }
+}
