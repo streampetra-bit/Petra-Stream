@@ -9,24 +9,46 @@ export class BlockIndexerService implements OnModuleInit {
   private readonly logger = new Logger(BlockIndexerService.name);
   // keep provider as a loose type to avoid strict typing issues with different ethers exports
   private provider: WebSocketProvider | JsonRpcProvider | any;
-  private ifaceRegistry: Interface;
-  private ifaceVault: Interface;
+  private ifaceRegistry!: Interface;
+  private ifaceVault!: Interface;
+  private enabled = true;
 
   constructor(
     private readonly notifications: NotificationsGateway,
     private readonly streamsService: StreamsService
   ) {
-    // prefer explicit Somnia endpoints, then fall back to local
+    // prefer explicit Somnia endpoints; skip if not configured
     const wsOrHttp =
       process.env.SOMNIA_WS ||
       process.env.SOMNIA_TEST_WS ||
       process.env.SOMNIA_HTTP ||
       process.env.SOMNIA_TEST_HTTP ||
       process.env.SOMNIA_RPC_URL ||
-      'ws://127.0.0.1:8545';
+      '';
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (!wsOrHttp) {
+      this.enabled = false;
+      this.logger.warn('Block indexer disabled: no Somnia RPC configured');
+      return;
+    }
+    if (isProduction && /localhost|127\.0\.0\.1/.test(wsOrHttp)) {
+      this.enabled = false;
+      this.logger.warn(`Block indexer disabled: invalid RPC for production (${wsOrHttp})`);
+      return;
+    }
 
     if (wsOrHttp.startsWith('ws')) {
       this.provider = new WebSocketProvider(wsOrHttp);
+      const socket = (this.provider as any)._websocket || (this.provider as any).websocket;
+      if (socket?.on) {
+        socket.on('error', (err: any) => {
+          this.logger.warn(`Indexer websocket error: ${err?.message || err}`);
+        });
+        socket.on('close', () => {
+          this.logger.warn('Indexer websocket closed');
+        });
+      }
     } else {
       this.provider = new JsonRpcProvider(wsOrHttp);
     }
@@ -43,6 +65,9 @@ export class BlockIndexerService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    if (!this.enabled || !this.provider) {
+      return;
+    }
     this.logger.log('Block indexer starting, subscribing to logs...');
 
     const registryAddress = process.env.REGISTRY_ADDRESS;
