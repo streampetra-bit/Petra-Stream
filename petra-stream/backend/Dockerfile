@@ -1,6 +1,8 @@
 # ---------- Stage 1: build ----------
-FROM node:20-alpine AS build
-RUN apk add --no-cache python3 make g++ bash
+FROM node:20-bookworm-slim AS build
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ bash openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
@@ -21,7 +23,10 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---------- Stage 2: runtime ----------
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/app
 
 # copy package manifests and install prod deps only
