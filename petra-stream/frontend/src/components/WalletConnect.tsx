@@ -1,7 +1,9 @@
 // src/components/WalletConnect.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import { ethers } from 'ethers';
+import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { AUTH_TOKEN_KEY, clearAuth, notifyAuthChange, writeAuth } from '../lib/auth';
 
 declare global {
   interface Window { ethereum?: any }
@@ -17,10 +19,85 @@ export default function WalletConnect(): JSX.Element {
   const mounted = useRef(true);
   const toast = useToast();
 
+  const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
+  const chainIdHex = `0x${chainId.toString(16)}`;
+  const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || 'Somnia Testnet');
+  const rpcUrl = String(import.meta.env.VITE_SOMNIA_RPC_URL || '');
+  const explorerUrl = String(import.meta.env.VITE_SOMNIA_EXPLORER_URL || '');
+  const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || 'SOM');
+
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
+
+  async function ensureSomniaNetwork() {
+    if (!window.ethereum) return false;
+    try {
+      const current = await window.ethereum.request({ method: 'eth_chainId' });
+      if (String(current).toLowerCase() === chainIdHex.toLowerCase()) return true;
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: chainIdHex }]
+        });
+        return true;
+      } catch (switchErr: any) {
+        if (switchErr?.code === 4902) {
+          if (!rpcUrl) {
+            toast.error('Missing RPC URL', 'Set VITE_SOMNIA_RPC_URL in frontend env', 4000);
+            return false;
+          }
+          const params: any = {
+            chainId: chainIdHex,
+            chainName,
+            rpcUrls: [rpcUrl],
+            nativeCurrency: { name: chainName, symbol, decimals: 18 }
+          };
+          if (explorerUrl) params.blockExplorerUrls = [explorerUrl];
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [params]
+          });
+          return true;
+        }
+        toast.error('Wrong network', `Please switch to ${chainName}`, 3500);
+        return false;
+      }
+    } catch (err) {
+      console.error('Network check failed', err);
+      return false;
+    }
+  }
+
+  async function authenticate(addr: string, signer: ethers.Signer) {
+    try {
+      const nonceRes = await api.get('/api/auth/nonce', { params: { address: addr } }).catch(() => null);
+      const message = nonceRes?.data?.message;
+      if (!message) {
+        toast.error('Auth failed', 'Missing auth message', 3000);
+        return;
+      }
+      const signature = await signer.signMessage(message);
+      const verifyRes = await api.post('/api/auth/verify', { address: addr, signature }).catch(() => null);
+      const token = verifyRes?.data?.token;
+      const user = verifyRes?.data?.user;
+      if (token) {
+        if (user) {
+          writeAuth(user, token);
+        } else {
+          localStorage.setItem(AUTH_TOKEN_KEY, token);
+          notifyAuthChange();
+        }
+        toast.success('Authenticated', 'Creator actions unlocked', 2500);
+      } else {
+        toast.error('Auth failed', 'No token returned', 3000);
+      }
+    } catch (err) {
+      console.error('Auth failed', err);
+      toast.error('Auth failed', 'Signature rejected', 3000);
+    }
+  }
 
   // Initialize provider if injected
   useEffect(() => {
@@ -65,32 +142,37 @@ export default function WalletConnect(): JSX.Element {
     })();
   }, [address, provider]);
 
-  // Listen for account changes (MetaMask / wallets can emit this)
+  // Listen for account and chain changes
   useEffect(() => {
     const handler = (accounts: string[]) => {
       if (!mounted.current) return;
       if (Array.isArray(accounts) && accounts.length > 0) {
         setAddress(accounts[0]);
+        clearAuth();
         toast.info('Account changed', accounts[0], 3000);
       } else {
         // disconnected
         setAddress(null);
         setBalance(null);
+        clearAuth();
       }
+    };
+    const onChainChanged = () => {
+      const p = new ethers.BrowserProvider(window.ethereum, 'any');
+      setProvider(p);
+      toast.info('Network changed', undefined, 2500);
+      clearAuth();
     };
 
     if (window.ethereum && window.ethereum.on) {
       window.ethereum.on('accountsChanged', handler);
-      window.ethereum.on?.('chainChanged', () => {
-        const p = new ethers.BrowserProvider(window.ethereum, 'any');
-        setProvider(p);
-        toast.info('Network changed', undefined, 2500);
-      });
+      window.ethereum.on('chainChanged', onChainChanged);
     }
 
     return () => {
       if (window.ethereum && window.ethereum.removeListener) {
         window.ethereum.removeListener('accountsChanged', handler);
+        window.ethereum.removeListener('chainChanged', onChainChanged);
       }
     };
   }, [toast]);
@@ -103,6 +185,8 @@ export default function WalletConnect(): JSX.Element {
 
     try {
       setLoading(true);
+      const ok = await ensureSomniaNetwork();
+      if (!ok) return;
       await window.ethereum.request({ method: 'eth_requestAccounts' });
       const p = new ethers.BrowserProvider(window.ethereum, 'any');
       setProvider(p);
@@ -110,6 +194,7 @@ export default function WalletConnect(): JSX.Element {
       const addr = await signer.getAddress();
       if (!mounted.current) return;
       setAddress(addr);
+      await authenticate(addr, signer);
 
       const bal = await p.getBalance(addr);
       if (!mounted.current) return;
@@ -129,6 +214,7 @@ export default function WalletConnect(): JSX.Element {
     setBalance(null);
     setProvider(null);
     setMenuOpen(false);
+    clearAuth();
     toast.info('Disconnected', undefined, 2500);
   }
 
@@ -170,7 +256,6 @@ export default function WalletConnect(): JSX.Element {
         aria-expanded={menuOpen}
         className="inline-flex items-center gap-3 rounded-lg px-3 py-1.5 bg-surface border"
         aria-label="Account menu"
-        // explicit border color to avoid @apply border-white/... issues in CSS processing
         style={{ borderColor: 'rgba(255,255,255,0.06)' }}
       >
         <div
@@ -182,7 +267,7 @@ export default function WalletConnect(): JSX.Element {
 
         <div className="text-left">
           <div className="text-sm font-medium text-text">{shortAddr}</div>
-          <div className="text-xs subtle">{balance ? `${balance} ETH` : '— ETH'}</div>
+          <div className="text-xs subtle">{balance ? `${balance} ${symbol}` : `-- ${symbol}`}</div>
         </div>
 
         <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ml-1 text-subtle transition-transform ${menuOpen ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -205,12 +290,12 @@ export default function WalletConnect(): JSX.Element {
             </button>
 
             <a
-              href={`https://etherscan.io/address/${address}`}
+              href={`${explorerUrl || 'https://etherscan.io'}/address/${address}`}
               target="_blank"
               rel="noreferrer"
               className="block px-3 py-2 rounded-md hover:bg-surface/80 transition text-text text-sm"
             >
-              View on Etherscan
+              View on Explorer
             </a>
 
             <button

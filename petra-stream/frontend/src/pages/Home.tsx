@@ -7,7 +7,7 @@ const MOCK_STREAMS = [
   {
     id: "s1",
     streamer: "alice",
-    title: "Chill coding & tea ☕",
+    title: "Chill coding & tea",
     description: "Pair programming: building a tiny web3 widget live.",
     viewerCount: 124,
   },

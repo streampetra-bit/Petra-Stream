@@ -1,6 +1,7 @@
 // src/components/EditProfileModal.tsx
 import React, { useEffect, useRef, useState } from "react";
 import api from "../lib/api";
+import { readAuthUser, updateAuthUser } from "../lib/auth";
 
 export default function EditProfileModal({
   profile,
@@ -32,16 +33,16 @@ export default function EditProfileModal({
       const res = await api.post(`/api/users/${profile.username}`, { displayName, bio }).catch(() => null);
       // if res ok, you might want to use server response; fallback to local object
       const next = res?.data ?? { displayName, bio };
-      // Persist to localStorage for UI-only accounts
-      try {
-        const raw = localStorage.getItem("app_user");
-        if (raw) {
-          const u = JSON.parse(raw);
-          if (u.username === profile.username) {
-            localStorage.setItem("app_user", JSON.stringify({ ...u, displayName }));
-          }
+      const authUser = readAuthUser();
+      if (authUser) {
+        const match =
+          authUser.username === profile.username ||
+          authUser.address === profile.username ||
+          authUser.id === profile.username;
+        if (match) {
+          updateAuthUser({ ...authUser, displayName });
         }
-      } catch {}
+      }
       onSaved(next);
     } catch (err) {
       console.error("Save failed", err);

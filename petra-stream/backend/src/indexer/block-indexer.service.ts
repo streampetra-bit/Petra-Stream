@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { WebSocketProvider, JsonRpcProvider, Interface } from 'ethers';
 import prisma from '../prisma/client';
 import { NotificationsGateway } from '../gateway/notifications.gateway';
+import { StreamsService } from '../streams/streams.service';
 
 @Injectable()
 export class BlockIndexerService implements OnModuleInit {
@@ -11,8 +12,18 @@ export class BlockIndexerService implements OnModuleInit {
   private ifaceRegistry: Interface;
   private ifaceVault: Interface;
 
-  constructor(private readonly notifications: NotificationsGateway) {
-    const wsOrHttp = process.env.SOMNIA_WS || process.env.SOMNIA_HTTP || 'ws://127.0.0.1:8545';
+  constructor(
+    private readonly notifications: NotificationsGateway,
+    private readonly streamsService: StreamsService
+  ) {
+    // prefer explicit Somnia endpoints, then fall back to local
+    const wsOrHttp =
+      process.env.SOMNIA_WS ||
+      process.env.SOMNIA_TEST_WS ||
+      process.env.SOMNIA_HTTP ||
+      process.env.SOMNIA_TEST_HTTP ||
+      process.env.SOMNIA_RPC_URL ||
+      'ws://127.0.0.1:8545';
 
     if (wsOrHttp.startsWith('ws')) {
       this.provider = new WebSocketProvider(wsOrHttp);
@@ -94,6 +105,15 @@ export class BlockIndexerService implements OnModuleInit {
           }
         });
 
+        await this.streamsService.recordTip(to.toString(), {
+          txHash: log.transactionHash,
+          from: from.toString(),
+          to: to.toString(),
+          token: token.toString(),
+          amount: netAmount.toString(),
+          memo: memo?.toString?.()
+        });
+
         // notify connected clients
         this.notifications.notifyTip(to.toString(), {
           txHash: log.transactionHash,
@@ -118,6 +138,15 @@ export class BlockIndexerService implements OnModuleInit {
             amount: BigInt(0),
             memo: `nft:${tokenId.toString()}`
           }
+        });
+
+        await this.streamsService.recordTip(to.toString(), {
+          txHash: log.transactionHash,
+          from: from.toString(),
+          to: to.toString(),
+          token: nft.toString(),
+          amount: '0',
+          memo: `nft:${tokenId.toString()}`
         });
 
         this.notifications.notifyTip(to.toString(), {

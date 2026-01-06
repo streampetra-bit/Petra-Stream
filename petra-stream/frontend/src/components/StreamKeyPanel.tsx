@@ -2,11 +2,17 @@
 import React, { useState } from "react";
 import { useToast } from "../contexts/ToastContext";
 
-export default function StreamKeyPanel({ streamKey, onRegenerate }: { streamKey?: string | null; onRegenerate?: () => Promise<void> | void }) {
+export default function StreamKeyPanel({
+  streamKey,
+  onRegenerate,
+}: {
+  streamKey?: string | null;
+  onRegenerate?: () => Promise<void> | void;
+}) {
   const [show, setShow] = useState(false);
   const toast = useToast();
 
-  const masked = streamKey ? streamKey.replace(/.(?=.{4})/g, "*") : "—";
+  const masked = streamKey ? streamKey.replace(/.(?=.{4})/g, "*") : "not-set";
 
   async function copyKey() {
     if (!streamKey) {
@@ -40,7 +46,7 @@ export default function StreamKeyPanel({ streamKey, onRegenerate }: { streamKey?
 
       <div className="mt-4 flex items-center gap-2">
         <div className="flex-1 p-2 rounded border bg-bg/10">
-          <div className="text-sm font-mono">{show ? (streamKey ?? "—") : masked}</div>
+          <div className="text-sm font-mono">{show ? (streamKey ?? "not-set") : masked}</div>
         </div>
 
         <button onClick={() => setShow((s) => !s)} className="px-3 py-2 rounded-md border text-sm">
@@ -53,8 +59,12 @@ export default function StreamKeyPanel({ streamKey, onRegenerate }: { streamKey?
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <button onClick={() => onRegenerate?.()} className="px-3 py-2 rounded-md border text-sm">Regenerate Key</button>
-        <button onClick={() => toast.info("Learn how to stream (docs)", undefined, 1600)} className="px-3 py-2 rounded-md border text-sm">How to stream</button>
+        <button onClick={() => onRegenerate?.()} className="px-3 py-2 rounded-md border text-sm">
+          Regenerate Key
+        </button>
+        <button onClick={() => toast.info("Learn how to stream (docs)", undefined, 1600)} className="px-3 py-2 rounded-md border text-sm">
+          How to stream
+        </button>
       </div>
     </div>
   );

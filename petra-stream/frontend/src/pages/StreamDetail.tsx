@@ -10,6 +10,19 @@ import Player, { PlayerHandle } from "../components/Player";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 
+type Stream = {
+  id?: string;
+  streamer?: string;
+  title?: string;
+  description?: string;
+  viewerCount?: number;
+  playbackUrl?: string;
+  videoUrl?: string;
+  thumbnail?: string;
+  tags?: string[];
+  isLive?: boolean;
+};
+
 /**
  * Robust StreamDetail page
  * - Falls back to MOCK_STREAMS if API fails / returns nothing
@@ -18,11 +31,11 @@ import { useToast } from "../contexts/ToastContext";
  * - Keyboard shortcuts: Space => play/pause, T => tip, C => focus chat, F => fullscreen, Y => theater mode
  */
 
-const MOCK_STREAMS = [
+const MOCK_STREAMS: Stream[] = [
   {
     id: "s1",
     streamer: "alice",
-    title: "Chill coding & tea ☕",
+    title: "Chill coding & tea",
     description: "Pair programming: building a tiny web3 widget live.",
     viewerCount: 124,
     playbackUrl: "",
@@ -57,9 +70,9 @@ const MOCK_STREAMS = [
 export default function StreamDetail(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const streamId = id ?? "";
-  const [stream, setStream] = useState<any | null>(null);
+  const [stream, setStream] = useState<Stream | null>(null);
   const [openTip, setOpenTip] = useState(false);
-  const [related, setRelated] = useState<any[]>([]);
+  const [related, setRelated] = useState<Stream[]>([]);
   const [theaterMode, setTheaterMode] = useState(false);
   const [usingMock, setUsingMock] = useState(false);
   const playerRef = useRef<PlayerHandle | null>(null);
@@ -96,7 +109,7 @@ export default function StreamDetail(): JSX.Element {
             setStream({
               id: streamId,
               streamer: streamId,
-              title: `Stream — ${streamId || "unknown"}`,
+              title: `Stream - ${streamId || "unknown"}`,
               description: "This is a fallback stream (backend not available).",
               viewerCount: 0,
               tags: [],
@@ -107,7 +120,7 @@ export default function StreamDetail(): JSX.Element {
           }
         }
       } catch (err) {
-        console.error("Failed to fetch stream — using fallback", err);
+        console.error("Failed to fetch stream, using fallback", err);
         if (!mounted) return;
         const found = MOCK_STREAMS.find(
           (s) =>
@@ -120,7 +133,7 @@ export default function StreamDetail(): JSX.Element {
           setStream({
             id: streamId,
             streamer: streamId,
-            title: `Stream — ${streamId || "unknown"}`,
+            title: `Stream - ${streamId || "unknown"}`,
             description: "This is a fallback stream (backend not available).",
             viewerCount: 0,
             tags: [],
@@ -154,8 +167,6 @@ export default function StreamDetail(): JSX.Element {
       } else if (socket && typeof socket.emit === "function") {
         // socket might be an instance already
         socket.emit("join", `stream:${streamId}`);
-      } else {
-        // no-op for dev environments without socket
       }
     } catch (err) {
       console.warn("Socket join failed (dev or missing socket):", err);
@@ -238,7 +249,7 @@ export default function StreamDetail(): JSX.Element {
         <div className={theaterMode ? "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
           {usingMock && (
             <div className="glass-card p-3 text-sm text-yellow-300">
-              Using mock stream data — backend returned no stream.
+              Using mock stream data - backend returned no stream.
             </div>
           )}
 
@@ -258,7 +269,7 @@ export default function StreamDetail(): JSX.Element {
               <div className="muted mt-1 max-w-xl">{stream.description}</div>
 
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <span className="text-xs subtle">Live • {stream.viewerCount ?? 0} viewers</span>
+                <span className="text-xs subtle">Live - {stream.viewerCount ?? 0} viewers</span>
                 {Array.isArray(stream.tags) &&
                   stream.tags.slice(0, 5).map((t: string) => (
                     <span key={t} className="text-xs px-2 py-1 rounded-md bg-bg/20 text-text">
@@ -324,7 +335,7 @@ export default function StreamDetail(): JSX.Element {
             <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {related.length ? (
-                related.map((r) => <StreamCard key={r.streamer || r.id} stream={r} />)
+                related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
               ) : (
                 <div className="muted">No related streams found.</div>
               )}
@@ -348,7 +359,7 @@ export default function StreamDetail(): JSX.Element {
               <h4 className="text-sm subtle">Related</h4>
               <div className="space-y-2">
                 {related.slice(0, 3).map((r) => (
-                  <StreamCard key={r.streamer || r.id} stream={r} />
+                  <StreamCard key={r.streamer || r.id} stream={r as any} />
                 ))}
               </div>
             </div>
@@ -366,7 +377,7 @@ export default function StreamDetail(): JSX.Element {
           onClose={() => setOpenTip(false)}
           onTipped={() => {
             api.get(`/api/streams/${streamId}/tips`).catch(() => {});
-            toast.success("Thanks!", "Tip recorded — UI refreshed", 2500);
+            toast.success("Thanks!", "Tip recorded, UI refreshed", 2500);
           }}
         />
       )}

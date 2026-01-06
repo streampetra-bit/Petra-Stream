@@ -1,51 +1,71 @@
 // src/components/UserDropdown.tsx
 import React from "react";
-import clsx from "clsx";
 import SignInModal from "./SignInModal";
 import { useToast } from "../contexts/ToastContext";
 import { Link } from "react-router-dom";
+import api from "../lib/api";
+import { AuthUser, AUTH_TOKEN_KEY, clearAuth, readAuthUser, updateAuthUser } from "../lib/auth";
 
-/**
- * Simple app-level user management using localStorage (UI-only).
- * - 'app_user' localStorage value is { username: string, avatar?: string }
- * This keeps the Navbar UX testable before you implement backend auth.
- */
-
-type AppUser = { username: string; avatar?: string } | null;
-
-function readUser(): AppUser {
-  try {
-    const raw = localStorage.getItem("app_user");
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+type AppUser = AuthUser | null;
 
 export default function UserDropdown(): JSX.Element {
   const [open, setOpen] = React.useState(false);
-  const [user, setUser] = React.useState<AppUser>(readUser());
-  const [showSignIn, setShowSignIn] = React.useState(false);
+  const [user, setUser] = React.useState<AppUser>(readAuthUser());
+  const [authMode, setAuthMode] = React.useState<"login" | "register" | null>(null);
+  const [loading, setLoading] = React.useState(false);
   const toast = useToast();
 
   React.useEffect(() => {
-    setUser(readUser());
+    const refresh = () => setUser(readAuthUser());
+    refresh();
+    window.addEventListener("auth-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("auth-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
-  function onSignedIn(u: { username: string; avatar?: string }) {
-    localStorage.setItem("app_user", JSON.stringify(u));
+  React.useEffect(() => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token || user || loading) return;
+    setLoading(true);
+    api
+      .get("/api/auth/me")
+      .then((res) => {
+        const next = res?.data?.user;
+        if (next) {
+          updateAuthUser(next);
+          setUser(next);
+        }
+      })
+      .catch(() => {
+        clearAuth();
+      })
+      .finally(() => setLoading(false));
+  }, [user, loading]);
+
+  function onSignedIn(u: AuthUser) {
     setUser(u);
-    setShowSignIn(false);
-    toast.success("Signed in", `Welcome back, ${u.username}`, 2500);
+    setAuthMode(null);
+    const label = u.displayName || u.username || u.email || "account";
+    toast.success("Signed in", `Welcome back, ${label}`, 2500);
   }
 
   function signOut() {
-    localStorage.removeItem("app_user");
+    clearAuth();
     setUser(null);
     setOpen(false);
     toast.info("Signed out", undefined, 2000);
   }
+
+  const label =
+    user?.displayName ||
+    user?.username ||
+    user?.email ||
+    (user?.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : "Account");
+  const initials = label.slice(0, 2).toUpperCase();
+  const profileId = user?.username || user?.address || user?.id || "me";
 
   return (
     <div className="relative inline-flex items-center">
@@ -58,12 +78,12 @@ export default function UserDropdown(): JSX.Element {
             style={{ borderColor: "rgba(255,255,255,0.06)" }}
           >
             <div className="w-8 h-8 rounded-full neon-ring flex items-center justify-center bg-gradient-to-br" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))" }}>
-              <span className="text-xs font-mono text-bg">{(user.username || "??").slice(0, 2).toUpperCase()}</span>
+              <span className="text-xs font-mono text-bg">{initials || "??"}</span>
             </div>
 
             <div className="hidden sm:block text-left">
-              <div className="text-sm font-medium text-text truncate">{user.username}</div>
-              <div className="text-xs subtle">Account</div>
+              <div className="text-sm font-medium text-text truncate">{label}</div>
+              <div className="text-xs subtle">{user?.username ? "Member" : "Account"}</div>
             </div>
           </button>
 
@@ -71,7 +91,7 @@ export default function UserDropdown(): JSX.Element {
             <div className="absolute right-0 mt-2 w-44 rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50">
               <div className="p-2">
                 <div className="py-2">
-                  <Link to="/profile" className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Profile</Link>
+                  <Link to={`/profile/${profileId}`} className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Profile</Link>
                   <Link to="/dashboard" className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Dashboard</Link>
                   <Link to="/settings" className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Settings</Link>
                 </div>
@@ -88,23 +108,23 @@ export default function UserDropdown(): JSX.Element {
       ) : (
         <>
           <div className="hidden sm:inline-flex gap-2">
-            <button onClick={() => setShowSignIn(true)} className="px-3 py-1.5 rounded-md border text-text">
+            <button onClick={() => setAuthMode("login")} className="px-3 py-1.5 rounded-md border text-text">
               Sign in
             </button>
-            <button onClick={() => setShowSignIn(true)} className="btn-primary">
+            <button onClick={() => setAuthMode("register")} className="btn-primary">
               Create account
             </button>
           </div>
 
           <div className="inline-flex sm:hidden">
-            <button onClick={() => setShowSignIn(true)} className="px-3 py-1.5 rounded-md border">
+            <button onClick={() => setAuthMode("login")} className="px-3 py-1.5 rounded-md border">
               Account
             </button>
           </div>
         </>
       )}
 
-      {showSignIn && <SignInModal onClose={() => setShowSignIn(false)} onSignedIn={onSignedIn} />}
+      {authMode && <SignInModal defaultMode={authMode} onClose={() => setAuthMode(null)} onSignedIn={onSignedIn} />}
     </div>
   );
 }

@@ -72,8 +72,8 @@ export default function Dashboard() {
           <div className="bg-white rounded-2xl p-4 shadow">
             <h4 className="font-semibold mb-2">Quick Links</h4>
             <div className="flex flex-col gap-2">
-              <a className="text-sm text-petra-500" href="/dashboard">Stream Settings</a>
-              <a className="text-sm text-petra-500" href="/dashboard">Withdraw Funds</a>
+              <a className="text-sm text-petra-500" href="/create">Stream Settings</a>
+              <a className="text-sm text-petra-500" href="/monitor">Open Monitor</a>
             </div>
           </div>
         </aside>

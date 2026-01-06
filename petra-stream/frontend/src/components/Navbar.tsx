@@ -83,8 +83,8 @@ export default function Navbar(): JSX.Element {
         {/* Right actions */}
         <div className="flex items-center gap-3">
           {/* notifications */}
-          <button
-            type="button"
+          <Link
+            to="/notifications"
             className="hidden md:inline-flex items-center justify-center p-2 rounded-lg border border-white/6 bg-surface/80 hover:brightness-105 transition"
             aria-label="Notifications"
             title="Notifications"
@@ -95,7 +95,7 @@ export default function Navbar(): JSX.Element {
               </svg>
               <span className="absolute -top-1 -right-1 inline-flex h-2 w-2 rounded-full bg-pink-500 ring-2 ring-white/6" />
             </span>
-          </button>
+          </Link>
 
           {/* theme toggle */}
           <div className="hidden sm:inline-flex">
@@ -161,6 +161,9 @@ export default function Navbar(): JSX.Element {
               </Link>
               <Link to="/categories" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
                 Categories
+              </Link>
+              <Link to="/notifications" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
+                Notifications
               </Link>
               <Link
                 to="/create"

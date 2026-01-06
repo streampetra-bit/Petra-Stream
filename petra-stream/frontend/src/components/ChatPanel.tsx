@@ -102,11 +102,25 @@ export default function ChatPanel({
       toast.info("Message removed by moderator", undefined, 2500);
     };
 
+    const onHistory = (payload: any) => {
+      if (!payload || payload.streamId !== streamId || !Array.isArray(payload.messages)) return;
+      const sanitized = payload.messages.map((m: any) => ({
+        id: m.id ?? genId(),
+        user: m.user ?? "Anon",
+        text: m.text ?? "",
+        ts: m.ts ?? Date.now(),
+        system: !!m.system,
+        deleted: !!m.deleted
+      }));
+      setMsgs(sanitized);
+    };
+
     try {
       socket.on("chat:message", onMsg);
       socket.on("chat:typing", onTyping);
       socket.on("chat:participants", onParticipants);
       socket.on("chat:moderation:deleted", onDeleted);
+      socket.on("chat:history", onHistory);
     } catch (err) {
       console.warn("Socket listen failed", err);
     }
@@ -117,6 +131,7 @@ export default function ChatPanel({
         socket.off("chat:typing", onTyping);
         socket.off("chat:participants", onParticipants);
         socket.off("chat:moderation:deleted", onDeleted);
+        socket.off("chat:history", onHistory);
       } catch (err) {}
     };
   }, [streamId, toast]);

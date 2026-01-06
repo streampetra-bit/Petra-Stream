@@ -19,7 +19,7 @@ const config: HardhatUserConfig = {
       chainId: 1337
     },
     shannon: {
-      url: process.env.SOMNIA_RPC_URL || "https://your-somnia-rpc",
+      url: process.env.SOMNIA_RPC_URL || process.env.SOMNIA_TEST_HTTP || "https://your-somnia-rpc",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 2047 // adjust if Somnia Shannon uses a different chainId
     }

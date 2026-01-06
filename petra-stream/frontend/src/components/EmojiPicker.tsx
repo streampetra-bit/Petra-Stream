@@ -2,9 +2,9 @@
 import React from "react";
 
 const EMOJIS = [
-  "😀","😁","😂","🤣","😅","😊","😍","😘","😎","🤩",
-  "😇","🙂","🙃","😉","😜","🤔","😴","😬","😢","😭",
-  "👏","👍","👎","🙏","🔥","💯","🎉","🥳","💖","✨"
+  "😀", "😁", "😂", "🤣", "😊", "😍", "🤩", "😎", "🙌", "🔥",
+  "💯", "🚀", "🎉", "❤️", "👏", "🤝", "🧠", "💡", "🎵", "🎮",
+  "🍿", "☕", "🎨", "🛠️", "📺", "🎥", "📡", "🧘", "🏆", "🔗"
 ];
 
 export default function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
@@ -16,6 +16,7 @@ export default function EmojiPicker({ onPick }: { onPick: (emoji: string) => voi
           onClick={() => onPick(e)}
           className="p-1 rounded hover:bg-surface/80 text-lg"
           aria-label={`Pick ${e}`}
+          type="button"
         >
           {e}
         </button>

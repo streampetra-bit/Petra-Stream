@@ -7,6 +7,7 @@ import ViewerList from "../components/ViewerList";
 import ProfileHeader from "../components/ProfileHeader";
 import EditProfileModal from "../components/EditProfileModal";
 import { useToast } from "../contexts/ToastContext";
+import { AuthUser, readAuthUser } from "../lib/auth";
 
 /**
  * Profile page
@@ -29,17 +30,25 @@ export default function ProfilePage(): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [following, setFollowing] = useState(false);
 
-  // local "signed-in" user from localStorage (UI-only account)
-  const localUser = (() => {
-    try {
-      const raw = localStorage.getItem("app_user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const [authUser, setAuthUser] = useState<AuthUser | null>(readAuthUser());
 
-  const isOwner = localUser?.username && (localUser.username === id || localUser.username === profile?.username);
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("auth-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const isOwner =
+    !!authUser &&
+    (authUser.username === id ||
+      authUser.address === id ||
+      authUser.id === id ||
+      authUser.username === profile?.username ||
+      authUser.address === profile?.username);
 
   useEffect(() => {
     setLoading(true);
@@ -78,7 +87,8 @@ export default function ProfilePage(): JSX.Element {
     setFollowing((s) => !s);
     try {
       // If you have an endpoint, call it:
-      await api.post(`/api/users/${id}/follow`).catch(() => null);
+      const follower = authUser?.username || authUser?.address || authUser?.id;
+      await api.post(`/api/users/${id}/follow`, follower ? { follower } : {}).catch(() => null);
       toast.success(following ? "Unfollowed" : "Followed", undefined, 2000);
     } catch (err) {
       console.error("Follow failed", err);
