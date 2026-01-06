@@ -13,7 +13,7 @@ export class UsersController {
 
   @Get(':id/streams')
   streams(@Param('id') id: string) {
-    return this.users.streams(id);
+    return this.users.listStreams(id);
   }
 
   @Post(':id')

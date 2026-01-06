@@ -20,7 +20,7 @@ export class UsersService {
   private users = new Map<string, UserProfile>();
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly streams: StreamsService) {}
+  constructor(private readonly streamsService: StreamsService) {}
 
   async getUser(username: string): Promise<UserProfile | null> {
     const cached = this.users.get(username);
@@ -41,9 +41,9 @@ export class UsersService {
     }
 
     // fallback placeholder
-    const fromStream = await this.streams.findById(username);
+    const fromStream = await this.streamsService.findById(username);
     if (fromStream) {
-      const profile = this.mapUser({
+      const profile = this.mapMongoUser({
         username,
         displayName: username,
         bio: 'Stream on Petra',
@@ -91,8 +91,8 @@ export class UsersService {
     return { ok: true };
   }
 
-  async streams(username: string) {
-    return this.streams.streamsForUser(username);
+  async listStreams(username: string) {
+    return this.streamsService.streamsForUser(username);
   }
 
   private mapMongoUser(raw: any): UserProfile {

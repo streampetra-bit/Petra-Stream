@@ -14,8 +14,7 @@ import { HealthController } from './health/health.controller';
 @Module({
   imports: [
     ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 120
+      throttlers: [{ ttl: 60, limit: 120 }]
     }),
     StreamsModule,
     IndexerModule,

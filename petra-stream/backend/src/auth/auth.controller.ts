@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ethers } from 'ethers';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import prisma from '../prisma/client';
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -66,9 +66,11 @@ export class AuthController {
     if (!secret) {
       throw new UnauthorizedException('JWT secret not configured');
     }
-    const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+    const secretKey: Secret = secret;
+    const expiresIn: SignOptions['expiresIn'] =
+      (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn']) || '7d';
     const user = await prisma.user.findFirst({ where: { address } });
-    const token = jwt.sign({ address, userId: user?.id, username: user?.username }, secret, { expiresIn });
+    const token = jwt.sign({ address, userId: user?.id, username: user?.username }, secretKey, { expiresIn });
 
     return { token, address, expiresIn, user };
   }
@@ -100,8 +102,10 @@ export class AuthController {
     if (!secret) {
       throw new UnauthorizedException('JWT secret not configured');
     }
-    const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
-    const token = jwt.sign({ userId: user.id, username: user.username, address: user.address }, secret, { expiresIn });
+    const secretKey: Secret = secret;
+    const expiresIn: SignOptions['expiresIn'] =
+      (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn']) || '7d';
+    const token = jwt.sign({ userId: user.id, username: user.username, address: user.address }, secretKey, { expiresIn });
     return { token, user, expiresIn };
   }
 
@@ -133,8 +137,10 @@ export class AuthController {
     if (!secret) {
       throw new UnauthorizedException('JWT secret not configured');
     }
-    const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
-    const token = jwt.sign({ userId: user.id, username: user.username, address: user.address }, secret, { expiresIn });
+    const secretKey: Secret = secret;
+    const expiresIn: SignOptions['expiresIn'] =
+      (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn']) || '7d';
+    const token = jwt.sign({ userId: user.id, username: user.username, address: user.address }, secretKey, { expiresIn });
     return { token, user, expiresIn };
   }
 
