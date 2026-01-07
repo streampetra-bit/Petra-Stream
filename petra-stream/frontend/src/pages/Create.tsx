@@ -20,6 +20,8 @@ export default function CreatePage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [checkingPlayback, setCheckingPlayback] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
+  const [broadcastMode, setBroadcastMode] = useState<"browser" | "obs">("browser");
+  const [showPublisher, setShowPublisher] = useState(false);
   const [stats, setStats] = useState<{ viewers: number; tips: number; uptimeSec: number }>({
     viewers: 0,
     tips: 0,
@@ -28,6 +30,7 @@ export default function CreatePage(): JSX.Element {
 
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "";
   const hlsBaseUrl = import.meta.env.VITE_HLS_BASE_URL || "";
+  const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
   const uptimeTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -117,10 +120,28 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
-  async function startStream() {
+  function buildWebrtcPublishUrl(key: string | null) {
+    if (!key) return "";
+    const base = (webrtcBaseUrl || hlsBaseUrl).trim();
+    if (!base) return "";
+    try {
+      const url = new URL(base);
+      if (!webrtcBaseUrl) {
+        url.port = "8889";
+      }
+      const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
+      return `${url.origin}${basePath}/${key}/publish`;
+    } catch (err) {
+      if (!webrtcBaseUrl) return "";
+      const trimmed = webrtcBaseUrl.endsWith("/") ? webrtcBaseUrl.slice(0, -1) : webrtcBaseUrl;
+      return `${trimmed}/${key}/publish`;
+    }
+  }
+
+  async function startStream(): Promise<boolean> {
     if (!title.trim()) {
       toast.error("Please enter a stream title");
-      return;
+      return false;
     }
     setLoading(true);
     try {
@@ -132,16 +153,18 @@ export default function CreatePage(): JSX.Element {
       const payload = { title: title.trim(), description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
       const res = await api.post("/api/streams/start", payload).catch(() => null);
       if (res?.data?.ok ?? true) {
-        toast.success("Stream prepared", "Start streaming in OBS to go live.", 2500);
+        toast.success("Stream ready", "Go live in browser or OBS.", 2500);
       } else {
         toast.success("Stream prepared", "Stream details saved.", 2000);
       }
       setIsPrepared(true);
       const ok = await checkPlaybackUrl(true, derivedPlaybackUrl);
       setIsLive(ok);
+      return true;
     } catch (err) {
       console.error(err);
       toast.error("Failed to prepare stream");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -184,6 +207,26 @@ export default function CreatePage(): JSX.Element {
     if (ok) setIsLive(true);
   }
 
+  async function goLiveInBrowser() {
+    if (!title.trim()) {
+      toast.error("Please enter a stream title");
+      return;
+    }
+    if (!isPrepared) {
+      const ok = await startStream();
+      if (!ok) return;
+    }
+    const key = await ensureStreamKey();
+    const publishUrl = buildWebrtcPublishUrl(key);
+    if (!publishUrl) {
+      toast.error("WebRTC publish URL not configured", "Set VITE_WEBRTC_PUBLISH_URL or VITE_HLS_BASE_URL");
+      return;
+    }
+    setBroadcastMode("browser");
+    setShowPublisher(true);
+    toast.info("Browser studio ready", "Allow camera and mic to go live.", 2200);
+  }
+
   async function copyText(label: string, value?: string) {
     if (!value) {
       toast.error("Nothing to copy");
@@ -201,6 +244,7 @@ export default function CreatePage(): JSX.Element {
   const ingestServer = ingestUrl || "rtmp://165.227.224.72/live";
   const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
   const previewSrc = isLive ? playbackUrl : undefined;
+  const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
 
   useEffect(() => {
     if (!isPrepared || !playbackUrl || isLive) return;
@@ -218,7 +262,7 @@ export default function CreatePage(): JSX.Element {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold">Stream Dashboard</h1>
-          <p className="muted mt-1">Create and manage your live streams. Use the preview panel to check your stream settings.</p>
+          <p className="muted mt-1">Create and manage your live streams. Go live in browser or OBS, then verify playback.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -286,37 +330,118 @@ export default function CreatePage(): JSX.Element {
             </div>
 
             <div className="mt-4 rounded-lg border border-white/6 p-3 bg-bg/10">
-              <div className="text-xs subtle">Ingest (OBS/Streamlabs)</div>
-              <div className="mt-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-subtle">Server</span>
-                  <span className="font-mono text-text">{ingestServer}</span>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs subtle">Broadcast options</div>
+                  <div className="text-sm font-semibold mt-1">Go live from your browser or OBS</div>
                 </div>
-                <div className="flex items-center justify-between gap-2 mt-2">
-                  <span className="text-subtle">Stream key</span>
-                  <span className="font-mono text-text">{streamKey || "generate to see"}</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastMode("browser")}
+                    className={`px-3 py-1.5 rounded-md border ${broadcastMode === "browser" ? "bg-bg/20" : ""}`}
+                  >
+                    Browser
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastMode("obs")}
+                    className={`px-3 py-1.5 rounded-md border ${broadcastMode === "obs" ? "bg-bg/20" : ""}`}
+                  >
+                    OBS/Streamlabs
+                  </button>
                 </div>
               </div>
-              <div className="mt-2 text-xs subtle">
-                Start streaming in OBS using the server and key above. Playback will appear once MediaMTX produces HLS.
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => copyText("RTMP server URL", ingestServer)}
-                  className="px-3 py-2 rounded-md border text-sm"
-                >
-                  Copy RTMP server
-                </button>
-                <button
-                  type="button"
-                  onClick={() => copyText("Stream key", streamKey ?? "")}
-                  className="px-3 py-2 rounded-md border text-sm"
-                  disabled={!streamKey}
-                >
-                  Copy stream key
-                </button>
-              </div>
+
+              {broadcastMode === "browser" ? (
+                <>
+                  <div className="mt-3 text-xs subtle">
+                    Use your camera and mic directly in the browser. This opens the MediaMTX WebRTC studio.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={goLiveInBrowser}
+                      className="px-3 py-2 rounded-md border text-sm"
+                      disabled={loading}
+                    >
+                      Open broadcast studio
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPublisher((s) => !s)}
+                      className="px-3 py-2 rounded-md border text-sm"
+                      disabled={!webrtcPublishUrl}
+                    >
+                      {showPublisher ? "Hide studio" : "Show studio"}
+                    </button>
+                    {webrtcPublishUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => copyText("WebRTC publish URL", webrtcPublishUrl)}
+                        className="px-3 py-2 rounded-md border text-sm"
+                      >
+                        Copy studio link
+                      </button>
+                    ) : null}
+                  </div>
+                  {showPublisher ? (
+                    webrtcPublishUrl ? (
+                      <div className="mt-4 rounded-lg overflow-hidden border border-white/10">
+                        <iframe
+                          title="Broadcast studio"
+                          src={webrtcPublishUrl}
+                          className="w-full h-[520px] bg-black"
+                          allow="camera; microphone; autoplay; clipboard-write; display-capture"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mt-3 text-xs subtle">
+                        WebRTC publish URL not available. Set `VITE_WEBRTC_PUBLISH_URL` or `VITE_HLS_BASE_URL`.
+                      </div>
+                    )
+                  ) : null}
+                  <div className="mt-2 text-xs subtle">
+                    Tip: WebRTC uses port 8889 on MediaMTX. Make sure it is open on the server.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-3 text-xs subtle">
+                    Use OBS or Streamlabs if you need advanced scenes or desktop capture.
+                  </div>
+                  <div className="mt-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-subtle">Server</span>
+                      <span className="font-mono text-text">{ingestServer}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-2">
+                      <span className="text-subtle">Stream key</span>
+                      <span className="font-mono text-text">{streamKey || "generate to see"}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs subtle">
+                    Start streaming in OBS using the server and key above. Playback will appear once MediaMTX produces HLS.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyText("RTMP server URL", ingestServer)}
+                      className="px-3 py-2 rounded-md border text-sm"
+                    >
+                      Copy RTMP server
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyText("Stream key", streamKey ?? "")}
+                      className="px-3 py-2 rounded-md border text-sm"
+                      disabled={!streamKey}
+                    >
+                      Copy stream key
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mt-4 flex items-center gap-3">
@@ -340,7 +465,7 @@ export default function CreatePage(): JSX.Element {
           <div className="glass-card p-4">
             <h3 className="text-lg font-semibold">Preview</h3>
             <p className="muted text-sm mt-1">
-              A preview of the player / thumbnail. Replace with actual ingest preview when integrating RTMP/HLS workflows.
+              Preview appears once HLS is available. Use "Test playback" to confirm the stream is live.
             </p>
 
             <div className="mt-4">
@@ -348,7 +473,7 @@ export default function CreatePage(): JSX.Element {
             </div>
             {!isLive && (
               <div className="mt-3 text-xs subtle">
-                Waiting for stream input. Start streaming in OBS, then click "Test playback".
+                Waiting for stream input. Start broadcasting in browser or OBS, then click "Test playback".
               </div>
             )}
 
