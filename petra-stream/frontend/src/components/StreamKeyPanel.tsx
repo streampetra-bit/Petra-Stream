@@ -13,6 +13,8 @@ export default function StreamKeyPanel({
   const toast = useToast();
 
   const masked = streamKey ? streamKey.replace(/.(?=.{4})/g, "*") : "not-set";
+  const statusLabel = streamKey ? "Ready" : "Not set";
+  const keyActionLabel = streamKey ? "Regenerate Key" : "Generate Key";
 
   async function copyKey() {
     if (!streamKey) {
@@ -33,13 +35,13 @@ export default function StreamKeyPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="font-semibold">Stream Key</h4>
-          <div className="text-xs subtle mt-1">Keep this secret — anyone with this key can stream to your channel.</div>
+          <div className="text-xs subtle mt-1">Keep this secret - anyone with this key can stream to your channel.</div>
         </div>
 
         <div className="text-right">
           <div className="text-xs subtle">Status</div>
           <div className="mt-1">
-            <span className="px-2 py-1 rounded-md bg-bg/10 text-text text-sm">Ready</span>
+            <span className="px-2 py-1 rounded-md bg-bg/10 text-text text-sm">{statusLabel}</span>
           </div>
         </div>
       </div>
@@ -60,7 +62,7 @@ export default function StreamKeyPanel({
 
       <div className="mt-3 flex items-center gap-2">
         <button onClick={() => onRegenerate?.()} className="px-3 py-2 rounded-md border text-sm">
-          Regenerate Key
+          {keyActionLabel}
         </button>
         <button onClick={() => toast.info("Learn how to stream (docs)", undefined, 1600)} className="px-3 py-2 rounded-md border text-sm">
           How to stream

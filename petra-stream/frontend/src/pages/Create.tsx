@@ -15,6 +15,8 @@ export default function CreatePage(): JSX.Element {
   const [description, setDescription] = useState("");
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [isLive, setIsLive] = useState(false);
+  const [isPrepared, setIsPrepared] = useState(false);
+  const [autoPlayback, setAutoPlayback] = useState(true);
   const [loading, setLoading] = useState(false);
   const [checkingPlayback, setCheckingPlayback] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
@@ -37,8 +39,10 @@ export default function CreatePage(): JSX.Element {
           setTitle(res.data.title ?? "");
           setDescription(res.data.description ?? "");
           setStreamKey(res.data.streamKey ?? null);
-          setIsLive(!!res.data.isLive);
+          const status = String(res.data.status ?? "");
+          setIsLive(status === "online");
           setPlaybackUrl(res.data.playbackUrl ?? "");
+          setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
         }
       } catch (err) {
         // ignore
@@ -51,11 +55,12 @@ export default function CreatePage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!playbackUrl && streamKey && hlsBaseUrl) {
+    if (!autoPlayback) return;
+    if (streamKey && hlsBaseUrl) {
       const base = hlsBaseUrl.endsWith("/") ? hlsBaseUrl.slice(0, -1) : hlsBaseUrl;
       setPlaybackUrl(`${base}/${streamKey}/index.m3u8`);
     }
-  }, [streamKey, hlsBaseUrl, playbackUrl]);
+  }, [streamKey, hlsBaseUrl, autoPlayback]);
 
   useEffect(() => {
     // simple uptime increment while live
@@ -88,30 +93,55 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
+  async function checkPlaybackUrl(silent = false, overrideUrl?: string) {
+    const url = (overrideUrl ?? playbackUrl).trim();
+    if (!url) {
+      if (!silent) toast.error("Playback URL required", "Set a playback URL first");
+      return false;
+    }
+    if (!silent) setCheckingPlayback(true);
+    try {
+      const res = await api.post("/api/streams/playback/check", { playbackUrl: url }).catch(() => null);
+      if (res?.data?.ok) {
+        if (!silent) toast.success("Playback ready", `HTTP ${res.data.status}`);
+        return true;
+      }
+      if (!silent) toast.error("Playback not ready", res?.data?.reason || "No response");
+      return false;
+    } catch (err) {
+      console.error(err);
+      if (!silent) toast.error("Playback check failed");
+      return false;
+    } finally {
+      if (!silent) setCheckingPlayback(false);
+    }
+  }
+
   async function startStream() {
     if (!title.trim()) {
       toast.error("Please enter a stream title");
       return;
     }
-    if (!playbackUrl.trim()) {
-      toast.info("Tip", "Set a playback URL so viewers can watch (HLS/DASH).", 2500);
-    }
     setLoading(true);
     try {
       const key = await ensureStreamKey();
+      const base = hlsBaseUrl.endsWith("/") ? hlsBaseUrl.slice(0, -1) : hlsBaseUrl;
+      const derivedPlaybackUrl = autoPlayback && base && key ? `${base}/${key}/index.m3u8` : playbackUrl.trim();
+      if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       // ask backend to create/start stream session
-      const payload = { title: title.trim(), description: description.trim(), key, playbackUrl: playbackUrl.trim() };
+      const payload = { title: title.trim(), description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
       const res = await api.post("/api/streams/start", payload).catch(() => null);
       if (res?.data?.ok ?? true) {
-        toast.success("Stream started", "Your stream is now live (simulated)", 2500);
-        setIsLive(true);
+        toast.success("Stream prepared", "Start streaming in OBS to go live.", 2500);
       } else {
-        toast.success("Stream prepared", "Stream draft saved", 2000);
-        setIsLive(true);
+        toast.success("Stream prepared", "Stream details saved.", 2000);
       }
+      setIsPrepared(true);
+      const ok = await checkPlaybackUrl(true, derivedPlaybackUrl);
+      setIsLive(ok);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to start stream");
+      toast.error("Failed to prepare stream");
     } finally {
       setLoading(false);
     }
@@ -122,7 +152,8 @@ export default function CreatePage(): JSX.Element {
     try {
       await api.post("/api/streams/stop").catch(() => null);
       setIsLive(false);
-      toast.info("Stream stopped", undefined, 1800);
+      setIsPrepared(true);
+      toast.info("Stream offline", "You can go live again with the same key.", 2200);
       // optionally reset stats
     } catch (err) {
       console.error(err);
@@ -138,6 +169,7 @@ export default function CreatePage(): JSX.Element {
       const res = await api.post("/api/streams/regenerate-key").catch(() => null);
       const key = res?.data?.key ?? `sk_${Math.random().toString(36).slice(2, 12)}`;
       setStreamKey(key);
+      setIsPrepared(true);
       toast.success("Stream key regenerated", undefined, 2000);
     } catch (err) {
       console.error(err);
@@ -148,24 +180,8 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function testPlayback() {
-    if (!playbackUrl.trim()) {
-      toast.error("Playback URL required", "Set a playback URL first");
-      return;
-    }
-    setCheckingPlayback(true);
-    try {
-      const res = await api.post("/api/streams/playback/check", { playbackUrl: playbackUrl.trim() }).catch(() => null);
-      if (res?.data?.ok) {
-        toast.success("Playback ready", `HTTP ${res.data.status}`);
-      } else {
-        toast.error("Playback not ready", res?.data?.reason || "No response");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Playback check failed");
-    } finally {
-      setCheckingPlayback(false);
-    }
+    const ok = await checkPlaybackUrl(false);
+    if (ok) setIsLive(true);
   }
 
   async function copyText(label: string, value?: string) {
@@ -183,6 +199,19 @@ export default function CreatePage(): JSX.Element {
   }
 
   const ingestServer = ingestUrl || "rtmp://165.227.224.72/live";
+  const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
+  const previewSrc = isLive ? playbackUrl : undefined;
+
+  useEffect(() => {
+    if (!isPrepared || !playbackUrl || isLive) return;
+    const timer = window.setInterval(async () => {
+      const ok = await checkPlaybackUrl(true);
+      if (ok) {
+        setIsLive(true);
+      }
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [isPrepared, playbackUrl, isLive]);
 
   return (
     <div className="space-y-6">
@@ -193,9 +222,12 @@ export default function CreatePage(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="px-3 py-1.5 rounded-full text-xs border">
+            {statusLabel}
+          </span>
           {!isLive ? (
             <button onClick={startStream} disabled={loading} className="btn-primary px-4 py-2 rounded-md">
-              {loading ? "Starting..." : "Start new stream"}
+              {loading ? "Saving..." : "Prepare stream"}
             </button>
           ) : (
             <button onClick={stopStream} disabled={loading} className="px-4 py-2 rounded-md border bg-red-600/10">
@@ -225,12 +257,22 @@ export default function CreatePage(): JSX.Element {
               placeholder="Describe your stream (what are you doing?)"
             />
 
-            <label className="text-xs subtle mt-4">Playback URL (HLS/DASH)</label>
+            <div className="flex items-center justify-between mt-4">
+              <label className="text-xs subtle">Playback URL (HLS)</label>
+              <button
+                type="button"
+                onClick={() => setAutoPlayback((s) => !s)}
+                className="text-xs px-2 py-1 rounded-md border"
+              >
+                {autoPlayback ? "Use custom URL" : "Use auto URL"}
+              </button>
+            </div>
             <input
               value={playbackUrl}
               onChange={(e) => setPlaybackUrl(e.target.value)}
               className="w-full p-3 mt-1 rounded border bg-bg/10 text-text"
-              placeholder="https://your-cdn/stream.m3u8"
+              placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
+              disabled={autoPlayback}
             />
             <div className="mt-2">
               <button
@@ -254,6 +296,9 @@ export default function CreatePage(): JSX.Element {
                   <span className="text-subtle">Stream key</span>
                   <span className="font-mono text-text">{streamKey || "generate to see"}</span>
                 </div>
+              </div>
+              <div className="mt-2 text-xs subtle">
+                Start streaming in OBS using the server and key above. Playback will appear once MediaMTX produces HLS.
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -299,8 +344,13 @@ export default function CreatePage(): JSX.Element {
             </p>
 
             <div className="mt-4">
-              <Player heightClass="aspect-video" title={title || "Preview"} src={playbackUrl || undefined} />
+              <Player heightClass="aspect-video" title={title || "Preview"} src={previewSrc} />
             </div>
+            {!isLive && (
+              <div className="mt-3 text-xs subtle">
+                Waiting for stream input. Start streaming in OBS, then click "Test playback".
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div>
