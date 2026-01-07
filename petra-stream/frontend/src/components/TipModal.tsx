@@ -1,7 +1,7 @@
 // src/components/TipModal.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { ethers } from 'ethers';
-import axios from 'axios';
+import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 
 declare global {
@@ -61,7 +61,7 @@ export default function TipModal({
 
     try {
       // Ask backend for optional optimized payload
-      const resp = await axios.post(`/api/streams/${streamer}/tip`, { amount, memo }).catch(() => null);
+      const resp = await api.post(`/api/streams/${streamer}/tip`, { amount, memo }).catch(() => null);
 
       const provider = new ethers.BrowserProvider(window.ethereum, 'any');
       const signer = await provider.getSigner();

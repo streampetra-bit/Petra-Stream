@@ -4,6 +4,7 @@ import SidebarItem from "./SidebarItem";
 import clsx from "clsx";
 import { useToast } from "../contexts/ToastContext";
 import { Link, useLocation } from "react-router-dom";
+import api from "../lib/api";
 
 /**
  * Sidebar
@@ -76,16 +77,16 @@ export default function Sidebar({
     // otherwise keep placeholders.
     (async () => {
       try {
-        // categories (optional)
-        const catRes = await fetch(`${apiPrefix}/categories`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-        if (catRes?.data) setCategories(catRes.data);
+        const catRes = await api.get(`${apiPrefix}/categories`).catch(() => null);
+        if (catRes?.data?.data) setCategories(catRes.data.data);
 
-        const trendRes = await fetch(`${apiPrefix}/trending`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-        if (trendRes?.data) setTrending(trendRes.data);
+        const trendRes = await api.get(`${apiPrefix}/trending`).catch(() => null);
+        if (trendRes?.data?.data) setTrending(trendRes.data.data);
 
-        const topRes = await fetch(`${apiPrefix}/streams/top`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-        if (topRes?.data) setTopStreamers(topRes.data.slice(0, 6));
-      } catch (err) {
+        const topRes = await api.get(`${apiPrefix}/streams/top`).catch(() => null);
+        if (topRes?.data?.data) setTopStreamers(topRes.data.data.slice(0, 6));
+        else if (Array.isArray(topRes?.data)) setTopStreamers(topRes.data.slice(0, 6));
+      } catch {
         // ignore - fall back to defaults
       }
     })();

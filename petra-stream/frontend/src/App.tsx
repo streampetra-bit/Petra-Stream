@@ -17,6 +17,7 @@ import Monitor from "./pages/Monitor";
 
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import AuthGate from "./components/AuthGate";
 
 function NotFound() {
   return (
@@ -34,6 +35,7 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
+      <AuthGate />
       <Navbar />
 
       <div className="container mx-auto px-4 py-6">

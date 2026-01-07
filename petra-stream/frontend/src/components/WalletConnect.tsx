@@ -106,14 +106,16 @@ export default function WalletConnect(): JSX.Element {
       setProvider(p);
 
       // If user already connected before, try to read address (non-throwing)
-      p.getSigner().getAddress()
-        .then((addr) => {
+      (async () => {
+        try {
+          const signer = await p.getSigner();
+          const addr = await signer.getAddress();
           if (!mounted.current) return;
           setAddress(addr);
-        })
-        .catch(() => {
+        } catch {
           // ignore: not connected
-        });
+        }
+      })();
     }
   }, []);
 
