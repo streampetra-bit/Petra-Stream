@@ -1,5 +1,6 @@
 // src/pages/Home.tsx
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import StreamCard from "../components/StreamCard";
 import api from "../lib/api";
 
@@ -93,12 +94,12 @@ export default function Home(): JSX.Element {
               <a href="#streams" className="btn-primary">
                 Explore Live
               </a>
-              <a
-                href="/create"
+              <Link
+                to="/create"
                 className="px-4 py-2 rounded-lg border border-white/6 hover:bg-surface transition text-text"
               >
                 Start Streaming
-              </a>
+              </Link>
             </div>
           </div>
 
