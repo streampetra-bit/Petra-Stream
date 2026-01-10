@@ -120,21 +120,23 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
+  function normalizeBaseUrl(input: string) {
+    const trimmed = input.trim();
+    if (!trimmed) return "";
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed.replace(/^\/+/, "")}`;
+  }
+
   function buildWebrtcPublishUrl(key: string | null) {
     if (!key) return "";
-    const base = (webrtcBaseUrl || hlsBaseUrl).trim();
+    const base = normalizeBaseUrl(webrtcBaseUrl);
     if (!base) return "";
     try {
       const url = new URL(base);
-      if (!webrtcBaseUrl) {
-        url.port = "8889";
-      }
       const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
       return `${url.origin}${basePath}/${key}/publish`;
     } catch (err) {
-      if (!webrtcBaseUrl) return "";
-      const trimmed = webrtcBaseUrl.endsWith("/") ? webrtcBaseUrl.slice(0, -1) : webrtcBaseUrl;
-      return `${trimmed}/${key}/publish`;
+      return "";
     }
   }
 
@@ -245,6 +247,7 @@ export default function CreatePage(): JSX.Element {
   const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
   const previewSrc = isLive ? playbackUrl : undefined;
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
+  const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
 
   useEffect(() => {
     if (!isPrepared || !playbackUrl || isLive) return;
@@ -256,6 +259,13 @@ export default function CreatePage(): JSX.Element {
     }, 8000);
     return () => window.clearInterval(timer);
   }, [isPrepared, playbackUrl, isLive]);
+
+  useEffect(() => {
+    if (!supportsBrowserStudio && broadcastMode === "browser") {
+      setBroadcastMode("obs");
+      setShowPublisher(false);
+    }
+  }, [supportsBrowserStudio, broadcastMode]);
 
   return (
     <div className="space-y-6">
@@ -336,24 +346,30 @@ export default function CreatePage(): JSX.Element {
                   <div className="text-sm font-semibold mt-1">Go live from your browser or OBS</div>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastMode("browser")}
-                    className={`px-3 py-1.5 rounded-md border ${broadcastMode === "browser" ? "bg-bg/20" : ""}`}
-                  >
-                    Browser
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastMode("obs")}
-                    className={`px-3 py-1.5 rounded-md border ${broadcastMode === "obs" ? "bg-bg/20" : ""}`}
-                  >
-                    OBS/Streamlabs
-                  </button>
+                  {supportsBrowserStudio ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setBroadcastMode("browser")}
+                        className={`px-3 py-1.5 rounded-md border ${broadcastMode === "browser" ? "bg-bg/20" : ""}`}
+                      >
+                        Browser
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBroadcastMode("obs")}
+                        className={`px-3 py-1.5 rounded-md border ${broadcastMode === "obs" ? "bg-bg/20" : ""}`}
+                      >
+                        OBS/Streamlabs
+                      </button>
+                    </>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-md border bg-bg/10">OBS/Streamlabs</span>
+                  )}
                 </div>
               </div>
 
-              {broadcastMode === "browser" ? (
+              {supportsBrowserStudio && broadcastMode === "browser" ? (
                 <>
                   <div className="mt-3 text-xs subtle">
                     Use your camera and mic directly in the browser. This opens the MediaMTX WebRTC studio.
@@ -410,6 +426,11 @@ export default function CreatePage(): JSX.Element {
                   <div className="mt-3 text-xs subtle">
                     Use OBS or Streamlabs if you need advanced scenes or desktop capture.
                   </div>
+                  {!supportsBrowserStudio ? (
+                    <div className="mt-2 text-xs subtle">
+                      Browser studio is disabled. Set `VITE_WEBRTC_PUBLISH_URL` to enable in-browser streaming.
+                    </div>
+                  ) : null}
                   <div className="mt-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-subtle">Server</span>
