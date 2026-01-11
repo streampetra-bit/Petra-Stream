@@ -1,6 +1,5 @@
 // src/pages/Create.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
@@ -9,8 +8,6 @@ import LocalRecorder from "../components/LocalRecorder";
 
 export default function CreatePage(): JSX.Element {
   const toast = useToast();
-  const navigate = useNavigate();
-
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [playbackUrl, setPlaybackUrl] = useState("");
@@ -20,7 +17,6 @@ export default function CreatePage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [checkingPlayback, setCheckingPlayback] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
-  const [broadcastMode, setBroadcastMode] = useState<"browser" | "obs">("browser");
   const [showPublisher, setShowPublisher] = useState(false);
   const [stats, setStats] = useState<{ viewers: number; tips: number; uptimeSec: number }>({
     viewers: 0,
@@ -248,6 +244,12 @@ export default function CreatePage(): JSX.Element {
   const previewSrc = isLive ? playbackUrl : undefined;
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
+  const readinessLabel = isLive ? "Live to viewers" : isPrepared ? "Waiting for video" : "Not started";
+  const statusTone = isLive
+    ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/30"
+    : isPrepared
+      ? "bg-amber-400/10 text-amber-200 border-amber-400/30"
+      : "bg-white/5 text-white/70 border-white/10";
 
   useEffect(() => {
     if (!isPrepared || !playbackUrl || isLive) return;
@@ -260,274 +262,153 @@ export default function CreatePage(): JSX.Element {
     return () => window.clearInterval(timer);
   }, [isPrepared, playbackUrl, isLive]);
 
-  useEffect(() => {
-    if (!supportsBrowserStudio && broadcastMode === "browser") {
-      setBroadcastMode("obs");
-      setShowPublisher(false);
-    }
-  }, [supportsBrowserStudio, broadcastMode]);
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold">Stream Dashboard</h1>
-          <p className="muted mt-1">Create and manage your live streams. Go live in browser or OBS, then verify playback.</p>
+    <div className="space-y-8">
+      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0B1C2B] via-[#0A1320] to-[#0B1B2A]">
+        <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,rgba(0,229,168,0.35),rgba(0,229,168,0))] blur-2xl" />
+        <div className="absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,rgba(126,90,255,0.35),rgba(126,90,255,0))] blur-2xl" />
+        <div className="relative p-6 md:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <div className="text-xs uppercase tracking-[0.25em] text-white/60">Creator Studio</div>
+              <h1 className="mt-3 text-3xl md:text-4xl font-extrabold text-white">Go live in one click.</h1>
+              <p className="muted mt-3 text-sm md:text-base">
+                Start broadcasting from your camera and mic inside Petra Stream. We handle stream keys, playback URLs, and live status in the background.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className={`px-3 py-1.5 rounded-full border ${statusTone}`}>Status: {statusLabel}</span>
+                <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">{readinessLabel}</span>
+                {supportsBrowserStudio ? (
+                  <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">Browser studio ready</span>
+                ) : (
+                  <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">Browser studio disabled</span>
+                )}
+              </div>
+              {!supportsBrowserStudio ? (
+                <div className="mt-3 text-xs text-amber-200/80">
+                  Browser streaming is disabled. Set `VITE_WEBRTC_PUBLISH_URL` to enable in-browser streaming.
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-3 w-full md:w-auto">
+              <button
+                onClick={isLive ? stopStream : goLiveInBrowser}
+                disabled={loading || !supportsBrowserStudio}
+                className="btn-primary px-6 py-3 rounded-xl"
+              >
+                {loading ? "Working..." : isLive ? "End live" : "Go Live"}
+              </button>
+              {supportsBrowserStudio ? (
+                <button
+                  onClick={() => setShowPublisher((s) => !s)}
+                  className="px-4 py-2 rounded-xl border text-sm"
+                  disabled={!webrtcPublishUrl}
+                >
+                  {showPublisher ? "Hide studio" : "Show studio"}
+                </button>
+              ) : null}
+              <div className="text-xs text-white/60">
+                {supportsBrowserStudio ? "Allow camera and mic when prompted." : "Enable WebRTC to stream inside the site."}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
+        <div className="space-y-6">
+          <section className="glass-card p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Live Studio</h2>
+                <p className="muted text-sm mt-1">Broadcast directly from your browser without leaving the site.</p>
+              </div>
+              {supportsBrowserStudio ? (
+                <button
+                  className="px-3 py-2 rounded-md border text-xs"
+                  onClick={() => setShowPublisher((s) => !s)}
+                  disabled={!webrtcPublishUrl}
+                >
+                  {showPublisher ? "Hide studio" : "Show studio"}
+                </button>
+              ) : null}
+            </div>
+            {supportsBrowserStudio ? (
+              showPublisher ? (
+                <div className="mt-4 rounded-xl overflow-hidden border border-white/10">
+                  <iframe
+                    title="Broadcast studio"
+                    src={webrtcPublishUrl}
+                    className="w-full h-[520px] bg-black"
+                    allow="camera; microphone; autoplay; clipboard-write; display-capture"
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
+                  Click "Go Live" to open the in-browser studio and start streaming.
+                </div>
+              )
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-amber-400/30 p-6 text-center text-sm text-amber-200/80">
+                Browser studio is disabled. Enable WebRTC on MediaMTX and set `VITE_WEBRTC_PUBLISH_URL`.
+              </div>
+            )}
+          </section>
+
+          <section className="glass-card p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Live Preview</h2>
+                <p className="muted text-sm mt-1">This appears for viewers when your stream is live.</p>
+              </div>
+              <button
+                type="button"
+                onClick={testPlayback}
+                className="px-3 py-2 rounded-md border text-xs"
+                disabled={checkingPlayback}
+              >
+                {checkingPlayback ? "Checking..." : "Refresh status"}
+              </button>
+            </div>
+            <div className="mt-4">
+              <Player heightClass="aspect-video" title={title || "Live preview"} src={previewSrc} />
+            </div>
+            {!isLive ? (
+              <div className="mt-3 text-xs subtle">
+                Waiting for live video. Once your broadcast starts, this preview updates automatically.
+              </div>
+            ) : null}
+          </section>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="px-3 py-1.5 rounded-full text-xs border">
-            {statusLabel}
-          </span>
-          {!isLive ? (
-            <button onClick={startStream} disabled={loading} className="btn-primary px-4 py-2 rounded-md">
-              {loading ? "Saving..." : "Prepare stream"}
-            </button>
-          ) : (
-            <button onClick={stopStream} disabled={loading} className="px-4 py-2 rounded-md border bg-red-600/10">
-              {loading ? "Stopping..." : "Stop stream"}
-            </button>
-          )}
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section className="lg:col-span-2 space-y-4">
-          <div className="glass-card p-4">
-            <label className="text-xs subtle">Title</label>
+        <div className="space-y-6">
+          <section className="glass-card p-5">
+            <h2 className="text-lg font-semibold">Stream Details</h2>
+            <p className="muted text-sm mt-1">Set the title and description viewers will see.</p>
+            <label className="text-xs subtle mt-4">Title</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 mt-1 rounded border bg-bg/10 text-text"
-              placeholder="Enter stream title"
+              className="w-full p-3 mt-2 rounded-xl border bg-bg/10 text-text"
+              placeholder="Enter a clear stream title"
             />
 
             <label className="text-xs subtle mt-4">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-3 mt-1 rounded border bg-bg/10 text-text"
-              rows={5}
-              placeholder="Describe your stream (what are you doing?)"
+              className="w-full p-3 mt-2 rounded-xl border bg-bg/10 text-text"
+              rows={4}
+              placeholder="Let viewers know what you are streaming"
             />
+            <div className="mt-3 text-xs subtle">Details save automatically when you go live.</div>
+          </section>
 
-            <div className="flex items-center justify-between mt-4">
-              <label className="text-xs subtle">Playback URL (HLS)</label>
-              <button
-                type="button"
-                onClick={() => setAutoPlayback((s) => !s)}
-                className="text-xs px-2 py-1 rounded-md border"
-              >
-                {autoPlayback ? "Use custom URL" : "Use auto URL"}
-              </button>
-            </div>
-            <input
-              value={playbackUrl}
-              onChange={(e) => setPlaybackUrl(e.target.value)}
-              className="w-full p-3 mt-1 rounded border bg-bg/10 text-text"
-              placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
-              disabled={autoPlayback}
-            />
-            <div className="mt-2">
-              <button
-                type="button"
-                onClick={testPlayback}
-                className="px-3 py-2 rounded-md border text-sm"
-                disabled={checkingPlayback}
-              >
-                {checkingPlayback ? "Checking..." : "Test playback"}
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-lg border border-white/6 p-3 bg-bg/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs subtle">Broadcast options</div>
-                  <div className="text-sm font-semibold mt-1">Go live from your browser or OBS</div>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  {supportsBrowserStudio ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setBroadcastMode("browser")}
-                        className={`px-3 py-1.5 rounded-md border ${broadcastMode === "browser" ? "bg-bg/20" : ""}`}
-                      >
-                        Browser
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBroadcastMode("obs")}
-                        className={`px-3 py-1.5 rounded-md border ${broadcastMode === "obs" ? "bg-bg/20" : ""}`}
-                      >
-                        OBS/Streamlabs
-                      </button>
-                    </>
-                  ) : (
-                    <span className="px-3 py-1.5 rounded-md border bg-bg/10">OBS/Streamlabs</span>
-                  )}
-                </div>
-              </div>
-
-              {supportsBrowserStudio && broadcastMode === "browser" ? (
-                <>
-                  <div className="mt-3 text-xs subtle">
-                    Use your camera and mic directly in the browser. This opens the MediaMTX WebRTC studio.
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={goLiveInBrowser}
-                      className="px-3 py-2 rounded-md border text-sm"
-                      disabled={loading}
-                    >
-                      Open broadcast studio
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowPublisher((s) => !s)}
-                      className="px-3 py-2 rounded-md border text-sm"
-                      disabled={!webrtcPublishUrl}
-                    >
-                      {showPublisher ? "Hide studio" : "Show studio"}
-                    </button>
-                    {webrtcPublishUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => copyText("WebRTC publish URL", webrtcPublishUrl)}
-                        className="px-3 py-2 rounded-md border text-sm"
-                      >
-                        Copy studio link
-                      </button>
-                    ) : null}
-                  </div>
-                  {showPublisher ? (
-                    webrtcPublishUrl ? (
-                      <div className="mt-4 rounded-lg overflow-hidden border border-white/10">
-                        <iframe
-                          title="Broadcast studio"
-                          src={webrtcPublishUrl}
-                          className="w-full h-[520px] bg-black"
-                          allow="camera; microphone; autoplay; clipboard-write; display-capture"
-                        />
-                      </div>
-                    ) : (
-                      <div className="mt-3 text-xs subtle">
-                        WebRTC publish URL not available. Set `VITE_WEBRTC_PUBLISH_URL` or `VITE_HLS_BASE_URL`.
-                      </div>
-                    )
-                  ) : null}
-                  <div className="mt-2 text-xs subtle">
-                    Tip: WebRTC uses port 8889 on MediaMTX. Make sure it is open on the server.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="mt-3 text-xs subtle">
-                    Use OBS or Streamlabs if you need advanced scenes or desktop capture.
-                  </div>
-                  {!supportsBrowserStudio ? (
-                    <div className="mt-2 text-xs subtle">
-                      Browser studio is disabled. Set `VITE_WEBRTC_PUBLISH_URL` to enable in-browser streaming.
-                    </div>
-                  ) : null}
-                  <div className="mt-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-subtle">Server</span>
-                      <span className="font-mono text-text">{ingestServer}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mt-2">
-                      <span className="text-subtle">Stream key</span>
-                      <span className="font-mono text-text">{streamKey || "generate to see"}</span>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-xs subtle">
-                    Start streaming in OBS using the server and key above. Playback will appear once MediaMTX produces HLS.
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => copyText("RTMP server URL", ingestServer)}
-                      className="px-3 py-2 rounded-md border text-sm"
-                    >
-                      Copy RTMP server
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyText("Stream key", streamKey ?? "")}
-                      className="px-3 py-2 rounded-md border text-sm"
-                      disabled={!streamKey}
-                    >
-                      Copy stream key
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="mt-4 flex items-center gap-3">
-              <button onClick={() => toast.info("Draft saved", undefined, 1500)} className="px-3 py-2 rounded-md border">
-                Save draft
-              </button>
-              <button
-                onClick={() => {
-                  setTitle("");
-                  setDescription("");
-                  setPlaybackUrl("");
-                  toast.info("Cleared", undefined, 1200);
-                }}
-                className="px-3 py-2 rounded-md border"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-semibold">Preview</h3>
-            <p className="muted text-sm mt-1">
-              Preview appears once HLS is available. Use "Test playback" to confirm the stream is live.
-            </p>
-
-            <div className="mt-4">
-              <Player heightClass="aspect-video" title={title || "Preview"} src={previewSrc} />
-            </div>
-            {!isLive && (
-              <div className="mt-3 text-xs subtle">
-                Waiting for stream input. Start broadcasting in browser or OBS, then click "Test playback".
-              </div>
-            )}
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs subtle">Thumbnail</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={() => toast.info("Thumbnail uploaded (UI only)", undefined, 1200)}
-                  className="w-full mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs subtle">Category</label>
-                <select className="w-full mt-1 p-2 rounded border bg-bg/10 text-text">
-                  <option value="">General</option>
-                  <option value="gaming">Gaming</option>
-                  <option value="music">Music</option>
-                  <option value="art">Art</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <LocalRecorder />
-
-          <div className="glass-card p-4">
-            <h3 className="text-lg font-semibold">Stream Analytics</h3>
-            <p className="muted text-sm mt-1">Realtime stats (placeholder). Replace with your analytics backend when ready.</p>
-
-            <div className="mt-4 grid grid-cols-3 gap-4">
+          <section className="glass-card p-5">
+            <h2 className="text-lg font-semibold">Session</h2>
+            <p className="muted text-sm mt-1">Live stats update as viewers join.</p>
+            <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="p-3 rounded bg-bg/10 text-text text-center">
                 <div className="text-2xl font-bold">{stats.viewers}</div>
                 <div className="text-xs subtle">Viewers</div>
@@ -541,34 +422,100 @@ export default function CreatePage(): JSX.Element {
                 <div className="text-xs subtle">Uptime</div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <aside className="space-y-4">
-          <StreamKeyPanel streamKey={streamKey} onRegenerate={regenerateKey} />
-          <div className="glass-card p-4">
-            <h4 className="text-sm font-semibold">Quick actions</h4>
-            <div className="mt-3 flex flex-col gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => copyText("Playback URL", playbackUrl)}
-                className="px-3 py-2 rounded-md border text-sm"
+                className="px-3 py-2 rounded-md border text-xs"
                 disabled={!playbackUrl}
               >
-                Copy stream URL
+                Copy playback link
               </button>
               <button
                 onClick={() => copyText("RTMP server URL", ingestServer)}
-                className="px-3 py-2 rounded-md border text-sm"
+                className="px-3 py-2 rounded-md border text-xs"
               >
-                Copy RTMP settings
-              </button>
-              <button onClick={() => navigate("/monitor")} className="px-3 py-2 rounded-md border text-sm">
-                Open monitor
+                Copy RTMP info
               </button>
             </div>
-          </div>
-        </aside>
+          </section>
+        </div>
       </div>
+
+      <details className="glass-card p-5">
+        <summary className="cursor-pointer text-sm font-semibold">Advanced settings</summary>
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-xs subtle">Playback URL (HLS)</label>
+                <button
+                  type="button"
+                  onClick={() => setAutoPlayback((s) => !s)}
+                  className="text-xs px-2 py-1 rounded-md border"
+                >
+                  {autoPlayback ? "Use custom URL" : "Use auto URL"}
+                </button>
+              </div>
+              <input
+                value={playbackUrl}
+                onChange={(e) => setPlaybackUrl(e.target.value)}
+                className="w-full p-3 mt-2 rounded border bg-bg/10 text-text"
+                placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
+                disabled={autoPlayback}
+              />
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={testPlayback}
+                  className="px-3 py-2 rounded-md border text-xs"
+                  disabled={checkingPlayback}
+                >
+                  {checkingPlayback ? "Checking..." : "Test playback"}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 p-4 bg-bg/10">
+              <div className="text-xs subtle">OBS / External encoder</div>
+              <div className="mt-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-subtle">Server</span>
+                  <span className="font-mono text-text">{ingestServer}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <span className="text-subtle">Stream key</span>
+                  <span className="font-mono text-text">{streamKey || "generate to see"}</span>
+                </div>
+              </div>
+              <div className="mt-2 text-xs subtle">
+                Use OBS if you need advanced scenes, overlays, or desktop capture.
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyText("RTMP server URL", ingestServer)}
+                  className="px-3 py-2 rounded-md border text-xs"
+                >
+                  Copy RTMP server
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText("Stream key", streamKey ?? "")}
+                  className="px-3 py-2 rounded-md border text-xs"
+                  disabled={!streamKey}
+                >
+                  Copy stream key
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <StreamKeyPanel streamKey={streamKey} onRegenerate={regenerateKey} />
+            <LocalRecorder />
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
