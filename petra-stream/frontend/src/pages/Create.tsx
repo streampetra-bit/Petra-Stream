@@ -5,6 +5,8 @@ import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import LocalRecorder from "../components/LocalRecorder";
+import SignInModal from "../components/SignInModal";
+import { getAuthToken } from "../lib/auth";
 
 export default function CreatePage(): JSX.Element {
   const toast = useToast();
@@ -18,6 +20,7 @@ export default function CreatePage(): JSX.Element {
   const [checkingPlayback, setCheckingPlayback] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
   const [showPublisher, setShowPublisher] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const [stats, setStats] = useState<{ viewers: number; tips: number; uptimeSec: number }>({
     viewers: 0,
     tips: 0,
@@ -33,6 +36,7 @@ export default function CreatePage(): JSX.Element {
     // Example: if API returns a saved / draft stream object, you can fetch it here.
     (async () => {
       try {
+        if (!getAuthToken()) return;
         const res = await api.get("/api/streams/me").catch(() => null);
         if (res?.data) {
           setTitle(res.data.title ?? "");
@@ -52,6 +56,13 @@ export default function CreatePage(): JSX.Element {
       if (uptimeTimer.current) window.clearInterval(uptimeTimer.current);
     };
   }, []);
+
+  function requireAuth(nextMode: "login" | "register" = "login") {
+    if (getAuthToken()) return true;
+    toast.info("Sign in required", "Create an account or sign in to go live.", 2600);
+    setAuthMode(nextMode);
+    return false;
+  }
 
   useEffect(() => {
     if (!autoPlayback) return;
@@ -78,17 +89,21 @@ export default function CreatePage(): JSX.Element {
     };
   }, [isLive]);
 
-  async function ensureStreamKey() {
+  async function ensureStreamKey(): Promise<string | null> {
     if (streamKey) return streamKey;
+    if (!requireAuth()) return null;
     try {
       const res = await api.post("/api/streams/generate-key").catch(() => null);
-      const key = res?.data?.key ?? `sk_${Math.random().toString(36).slice(2, 12)}`;
+      const key = res?.data?.key;
+      if (!key) {
+        toast.error("Stream key unavailable", "Please try again.");
+        return null;
+      }
       setStreamKey(key);
       return key;
     } catch (err) {
-      const fallback = `sk_${Math.random().toString(36).slice(2, 12)}`;
-      setStreamKey(fallback);
-      return fallback;
+      toast.error("Stream key unavailable", "Please sign in and try again.");
+      return null;
     }
   }
 
@@ -137,18 +152,18 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function startStream(): Promise<boolean> {
-    if (!title.trim()) {
-      toast.error("Please enter a stream title");
-      return false;
-    }
+    if (!requireAuth()) return false;
     setLoading(true);
     try {
       const key = await ensureStreamKey();
+      if (!key) return false;
+      const finalTitle = title.trim() || "Live Stream";
+      if (!title.trim()) setTitle(finalTitle);
       const base = hlsBaseUrl.endsWith("/") ? hlsBaseUrl.slice(0, -1) : hlsBaseUrl;
       const derivedPlaybackUrl = autoPlayback && base && key ? `${base}/${key}/index.m3u8` : playbackUrl.trim();
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       // ask backend to create/start stream session
-      const payload = { title: title.trim(), description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
+      const payload = { title: finalTitle, description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
       const res = await api.post("/api/streams/start", payload).catch(() => null);
       if (res?.data?.ok ?? true) {
         toast.success("Stream ready", "Go live in browser or OBS.", 2500);
@@ -169,6 +184,7 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function stopStream() {
+    if (!requireAuth()) return;
     setLoading(true);
     try {
       await api.post("/api/streams/stop").catch(() => null);
@@ -185,10 +201,15 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function regenerateKey() {
+    if (!requireAuth()) return;
     setLoading(true);
     try {
       const res = await api.post("/api/streams/regenerate-key").catch(() => null);
-      const key = res?.data?.key ?? `sk_${Math.random().toString(36).slice(2, 12)}`;
+      const key = res?.data?.key;
+      if (!key) {
+        toast.error("Failed to regenerate key", "Please try again.");
+        return;
+      }
       setStreamKey(key);
       setIsPrepared(true);
       toast.success("Stream key regenerated", undefined, 2000);
@@ -206,21 +227,18 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function goLiveInBrowser() {
-    if (!title.trim()) {
-      toast.error("Please enter a stream title");
-      return;
-    }
+    if (!requireAuth()) return;
     if (!isPrepared) {
       const ok = await startStream();
       if (!ok) return;
     }
     const key = await ensureStreamKey();
+    if (!key) return;
     const publishUrl = buildWebrtcPublishUrl(key);
     if (!publishUrl) {
       toast.error("WebRTC publish URL not configured", "Set VITE_WEBRTC_PUBLISH_URL or VITE_HLS_BASE_URL");
       return;
     }
-    setBroadcastMode("browser");
     setShowPublisher(true);
     toast.info("Browser studio ready", "Allow camera and mic to go live.", 2200);
   }
@@ -516,6 +534,13 @@ export default function CreatePage(): JSX.Element {
           </div>
         </div>
       </details>
+      {authMode && (
+        <SignInModal
+          defaultMode={authMode}
+          onClose={() => setAuthMode(null)}
+          onSignedIn={() => setAuthMode(null)}
+        />
+      )}
     </div>
   );
 }
