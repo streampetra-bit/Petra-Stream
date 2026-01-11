@@ -89,11 +89,16 @@ export default function CreatePage(): JSX.Element {
     };
   }, [isLive]);
 
+  function handleAuthFailure() {
+    toast.info("Session expired", "Please sign in again to go live.", 3000);
+    setAuthMode("login");
+  }
+
   async function ensureStreamKey(): Promise<string | null> {
     if (streamKey) return streamKey;
     if (!requireAuth()) return null;
     try {
-      const res = await api.post("/api/streams/generate-key").catch(() => null);
+      const res = await api.post("/api/streams/generate-key");
       const key = res?.data?.key;
       if (!key) {
         toast.error("Stream key unavailable", "Please try again.");
@@ -102,6 +107,10 @@ export default function CreatePage(): JSX.Element {
       setStreamKey(key);
       return key;
     } catch (err) {
+      if ((err as any)?.response?.status === 401) {
+        handleAuthFailure();
+        return null;
+      }
       toast.error("Stream key unavailable", "Please sign in and try again.");
       return null;
     }
@@ -164,7 +173,7 @@ export default function CreatePage(): JSX.Element {
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       // ask backend to create/start stream session
       const payload = { title: finalTitle, description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
-      const res = await api.post("/api/streams/start", payload).catch(() => null);
+      const res = await api.post("/api/streams/start", payload);
       if (res?.data?.ok ?? true) {
         toast.success("Stream ready", "Go live in browser or OBS.", 2500);
       } else {
@@ -175,6 +184,10 @@ export default function CreatePage(): JSX.Element {
       setIsLive(ok);
       return true;
     } catch (err) {
+      if ((err as any)?.response?.status === 401) {
+        handleAuthFailure();
+        return false;
+      }
       console.error(err);
       toast.error("Failed to prepare stream");
       return false;
@@ -187,12 +200,16 @@ export default function CreatePage(): JSX.Element {
     if (!requireAuth()) return;
     setLoading(true);
     try {
-      await api.post("/api/streams/stop").catch(() => null);
+      await api.post("/api/streams/stop");
       setIsLive(false);
       setIsPrepared(true);
       toast.info("Stream offline", "You can go live again with the same key.", 2200);
       // optionally reset stats
     } catch (err) {
+      if ((err as any)?.response?.status === 401) {
+        handleAuthFailure();
+        return;
+      }
       console.error(err);
       toast.error("Failed to stop stream");
     } finally {
@@ -204,7 +221,7 @@ export default function CreatePage(): JSX.Element {
     if (!requireAuth()) return;
     setLoading(true);
     try {
-      const res = await api.post("/api/streams/regenerate-key").catch(() => null);
+      const res = await api.post("/api/streams/regenerate-key");
       const key = res?.data?.key;
       if (!key) {
         toast.error("Failed to regenerate key", "Please try again.");
@@ -214,6 +231,10 @@ export default function CreatePage(): JSX.Element {
       setIsPrepared(true);
       toast.success("Stream key regenerated", undefined, 2000);
     } catch (err) {
+      if ((err as any)?.response?.status === 401) {
+        handleAuthFailure();
+        return;
+      }
       console.error(err);
       toast.error("Failed to regenerate key");
     } finally {
