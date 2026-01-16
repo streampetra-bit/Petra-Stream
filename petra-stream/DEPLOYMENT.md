@@ -19,6 +19,29 @@ sudo tar -xzf mediamtx_linux_amd64.tar.gz
 rtmp: yes
 hls: yes
 hlsAddress: :8888
+webrtc: yes
+
+webrtcICEServers2:
+  - urls:
+      - stun:stun.l.google.com:19302
+  - urls:
+      - turn:turn.yourdomain.com:3478?transport=udp
+      - turn:turn.yourdomain.com:3478?transport=tcp
+    username: "turnuser"
+    credential: "turnpassword"
+
+webrtcAdditionalHosts:
+  - studio.yourdomain.com
+  - <public-ip>
+
+# Use standard HLS to reduce latency spikes and player stalls
+hlsVariant: standard
+hlsSegmentDuration: 4s
+hlsSegmentCount: 6
+
+paths:
+  all:
+    source: publisher
 
 # Ask backend to authorize publishing. Leave MEDIA_AUTH_TOKEN empty in backend
 # if you are using this direct call from MediaMTX.
@@ -64,6 +87,7 @@ sudo systemctl enable --now mediamtx
 Default endpoints:
 - RTMP ingest: `rtmp://<host>/live`
 - HLS playback: `http://<host>:8888/live/<streamKey>/index.m3u8`
+- WebRTC studio (browser publish): `https://studio.yourdomain.com/live/<streamKey>/publish`
 
 ### Optional: ingest auth hook
 MediaMTX can call your backend for publish authorization. Add this to `mediamtx.yml`:
@@ -96,7 +120,7 @@ If you set `MEDIA_AUTH_TOKEN`, add header:
 ## 2) Backend (NestJS)
 Required envs (see `backend/.env.example`):
 - `MEDIA_RTMP_URL="rtmp://165.227.224.72/live"`
-- `MEDIA_HLS_BASE_URL="http://165.227.224.72:8888/live"`
+- `MEDIA_HLS_BASE_URL="https://stream.yourdomain.com/live"`
 - `MEDIA_AUTH_TOKEN=""` (optional)
 - `JWT_SECRET="change-me"` (required for wallet auth)
 - `JWT_EXPIRES_IN="7d"`
@@ -105,7 +129,8 @@ Required envs (see `backend/.env.example`):
 ## 3) Frontend (Vite)
 Set envs (see `frontend/.env.example`):
 - `VITE_INGEST_URL="rtmp://165.227.224.72/live"`
-- `VITE_HLS_BASE_URL="http://165.227.224.72:8888/live"`
+- `VITE_HLS_BASE_URL="https://stream.yourdomain.com/live"`
+- `VITE_WEBRTC_PUBLISH_URL="https://studio.yourdomain.com/live"`
 
 ## 4) Reverse proxy + HTTPS (recommended)
 For production, proxy HLS through Nginx and serve on HTTPS:

@@ -23,6 +23,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const manifestRetryRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +54,10 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    if (manifestRetryRef.current) {
+      window.clearTimeout(manifestRetryRef.current);
+      manifestRetryRef.current = null;
+    }
 
     if (!src) {
       v.removeAttribute('src');
@@ -66,18 +71,41 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
+          lowLatencyMode: false,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 8,
+          maxBufferLength: 30,
+          backBufferLength: 30,
         });
         hlsRef.current = hls;
         hls.attachMedia(v);
+        const scheduleManifestRetry = () => {
+          if (manifestRetryRef.current) return;
+          manifestRetryRef.current = window.setTimeout(() => {
+            if (!hlsRef.current) return;
+            hlsRef.current.loadSource(src);
+            hlsRef.current.startLoad();
+            manifestRetryRef.current = null;
+          }, 2000);
+        };
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
           hls.loadSource(src);
         });
+        hls.on(Hls.Events.LEVEL_LOADED, () => {
+          setError(null);
+        });
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          const details = data?.details || data?.type;
+          if (details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
+            setError('Waiting for live');
+            scheduleManifestRetry();
+            return;
+          }
           if (data?.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                hls.startLoad();
+                setError('Reconnecting');
+                scheduleManifestRetry();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 hls.recoverMediaError();
@@ -87,13 +115,17 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
                 break;
             }
           }
-          if (data?.details || data?.type) {
-            setError(`Playback error: ${data?.details || data?.type}`);
+          if (details) {
+            setError(`Playback error: ${details}`);
           }
         });
         return () => {
           hls.destroy();
           hlsRef.current = null;
+          if (manifestRetryRef.current) {
+            window.clearTimeout(manifestRetryRef.current);
+            manifestRetryRef.current = null;
+          }
         };
       }
 
