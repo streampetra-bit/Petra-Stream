@@ -21,6 +21,12 @@ export default function CreatePage(): JSX.Element {
   const [streamKey, setStreamKey] = useState<string | null>(null);
   const [showPublisher, setShowPublisher] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
+  const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
+    ok: boolean;
+    status?: number;
+    reason?: string;
+    at: string;
+  } | null>(null);
   const [stats, setStats] = useState<{ viewers: number; tips: number; uptimeSec: number }>({
     viewers: 0,
     tips: 0,
@@ -127,12 +133,24 @@ export default function CreatePage(): JSX.Element {
       const res = await api.post("/api/streams/playback/check", { playbackUrl: url }).catch(() => null);
       if (res?.data?.ok) {
         if (!silent) toast.success("Playback ready", `HTTP ${res.data.status}`);
+        setLastPlaybackCheck({ ok: true, status: res.data.status, at: new Date().toISOString() });
         return true;
       }
+      setLastPlaybackCheck({
+        ok: false,
+        status: res?.data?.status,
+        reason: res?.data?.reason || "No response",
+        at: new Date().toISOString(),
+      });
       if (!silent) toast.error("Playback not ready", res?.data?.reason || "No response");
       return false;
     } catch (err) {
       console.error(err);
+      setLastPlaybackCheck({
+        ok: false,
+        reason: (err as any)?.message || "fetch_failed",
+        at: new Date().toISOString(),
+      });
       if (!silent) toast.error("Playback check failed");
       return false;
     } finally {
@@ -154,7 +172,19 @@ export default function CreatePage(): JSX.Element {
     try {
       const url = new URL(base);
       const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
-      return `${url.origin}${basePath}/${key}/publish`;
+      url.pathname = `${basePath}/${key}/publish`;
+
+      const params = url.searchParams;
+      if (!params.has("video-codec")) params.set("video-codec", "h264/90000");
+      if (!params.has("audio-codec")) params.set("audio-codec", "opus/48000");
+      if (!params.has("video-bitrate")) params.set("video-bitrate", "2500");
+      if (!params.has("audio-bitrate")) params.set("audio-bitrate", "96");
+      if (!params.has("video-framerate")) params.set("video-framerate", "30");
+      if (!params.has("video-width")) params.set("video-width", "1280");
+      if (!params.has("video-height")) params.set("video-height", "720");
+      if (!params.has("audio-voice")) params.set("audio-voice", "true");
+
+      return url.toString();
     } catch (err) {
       return "";
     }
@@ -283,6 +313,7 @@ export default function CreatePage(): JSX.Element {
   const previewSrc = isLive ? playbackUrl : undefined;
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
+  const isAuthed = Boolean(getAuthToken());
   const readinessLabel = isLive ? "Live to viewers" : isPrepared ? "Waiting for video" : "Not started";
   const statusTone = isLive
     ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/30"
@@ -552,6 +583,61 @@ export default function CreatePage(): JSX.Element {
           <div className="space-y-4">
             <StreamKeyPanel streamKey={streamKey} onRegenerate={regenerateKey} />
             <LocalRecorder />
+            <div className="glass-card p-4">
+              <h3 className="text-sm font-semibold">Diagnostics</h3>
+              <p className="muted text-xs mt-1">Use this to verify the stream URLs and auth status.</p>
+              <div className="mt-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="subtle">Auth</span>
+                  <span className="text-text">{isAuthed ? "Signed in" : "Signed out"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="subtle">Studio URL</span>
+                  <span className="font-mono text-[10px] text-text">{webrtcPublishUrl || "not-set"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="subtle">Playback URL</span>
+                  <span className="font-mono text-[10px] text-text">{playbackUrl || "not-set"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="subtle">Last check</span>
+                  <span className="text-text">
+                    {lastPlaybackCheck
+                      ? `${lastPlaybackCheck.ok ? "OK" : "Fail"}${lastPlaybackCheck.status ? ` (${lastPlaybackCheck.status})` : ""}`
+                      : "not-run"}
+                  </span>
+                </div>
+              </div>
+              {lastPlaybackCheck?.reason ? (
+                <div className="mt-2 text-[11px] text-amber-200/80">Reason: {lastPlaybackCheck.reason}</div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={testPlayback}
+                  className="px-3 py-2 rounded-md border text-xs"
+                  disabled={checkingPlayback}
+                >
+                  {checkingPlayback ? "Checking..." : "Check playback"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText("Playback URL", playbackUrl)}
+                  className="px-3 py-2 rounded-md border text-xs"
+                  disabled={!playbackUrl}
+                >
+                  Copy HLS URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText("Studio URL", webrtcPublishUrl)}
+                  className="px-3 py-2 rounded-md border text-xs"
+                  disabled={!webrtcPublishUrl}
+                >
+                  Copy studio URL
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </details>

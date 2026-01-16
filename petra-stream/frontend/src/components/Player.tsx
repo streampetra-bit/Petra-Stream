@@ -1,5 +1,6 @@
 // src/components/Player.tsx
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import Hls from 'hls.js';
 import clsx from 'clsx';
 
 export type PlayerHandle = {
@@ -21,6 +22,7 @@ type PlayerProps = {
 const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heightClass = '' }, ref) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,72 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
       v.removeEventListener('error', onError);
     };
   }, []);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    setError(null);
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (!src) {
+      v.removeAttribute('src');
+      v.load();
+      return;
+    }
+
+    const isHls = src.includes('.m3u8');
+
+    if (isHls) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+        hlsRef.current = hls;
+        hls.attachMedia(v);
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          hls.loadSource(src);
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data?.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                break;
+            }
+          }
+          if (data?.details || data?.type) {
+            setError(`Playback error: ${data?.details || data?.type}`);
+          }
+        });
+        return () => {
+          hls.destroy();
+          hlsRef.current = null;
+        };
+      }
+
+      if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = src;
+        return;
+      }
+
+      setError('HLS not supported in this browser');
+      return;
+    }
+
+    v.src = src;
+  }, [src]);
 
   async function play() {
     const v = videoRef.current;
