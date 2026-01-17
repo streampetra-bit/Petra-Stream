@@ -310,7 +310,7 @@ export default function CreatePage(): JSX.Element {
 
   const ingestServer = ingestUrl || "rtmp://165.227.224.72/live";
   const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
-  const previewSrc = isLive ? playbackUrl : undefined;
+  const previewSrc = playbackUrl || undefined;
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
   const isAuthed = Boolean(getAuthToken());
@@ -442,7 +442,13 @@ export default function CreatePage(): JSX.Element {
               </button>
             </div>
             <div className="mt-4">
-              <Player heightClass="aspect-video" title={title || "Live preview"} src={previewSrc} />
+              <Player
+                heightClass="aspect-video"
+                title={title || "Live preview"}
+                src={previewSrc}
+                autoPlay
+                startMuted
+              />
             </div>
             {!isLive ? (
               <div className="mt-3 text-xs subtle">

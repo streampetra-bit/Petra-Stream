@@ -17,20 +17,30 @@ type PlayerProps = {
   poster?: string;
   title?: string;
   heightClass?: string;
+  autoPlay?: boolean;
+  startMuted?: boolean;
 };
 
-const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heightClass = '' }, ref) => {
+const Player = forwardRef<PlayerHandle, PlayerProps>(
+  ({ src, poster, title, heightClass = "", autoPlay = false, startMuted = false }, ref) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const manifestRetryRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(startMuted || autoPlay);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+    if (autoPlay) {
+      v.muted = true;
+      setMuted(true);
+    } else if (startMuted) {
+      v.muted = true;
+      setMuted(true);
+    }
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onError = () => setError('Playback error');
@@ -42,7 +52,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
       v.removeEventListener('pause', onPause);
       v.removeEventListener('error', onError);
     };
-  }, []);
+  }, [autoPlay, startMuted]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -93,6 +103,11 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
         });
         hls.on(Hls.Events.LEVEL_LOADED, () => {
           setError(null);
+          if (autoPlay) {
+            void v.play().catch(() => {
+              // ignore autoplay errors
+            });
+          }
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           const details = data?.details || data?.type;
@@ -131,6 +146,11 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
 
       if (v.canPlayType('application/vnd.apple.mpegurl')) {
         v.src = src;
+        if (autoPlay) {
+          void v.play().catch(() => {
+            // ignore autoplay errors
+          });
+        }
         return;
       }
 
@@ -139,7 +159,12 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
     }
 
     v.src = src;
-  }, [src]);
+    if (autoPlay) {
+      void v.play().catch(() => {
+        // ignore autoplay errors
+      });
+    }
+  }, [src, autoPlay]);
 
   async function play() {
     const v = videoRef.current;
@@ -202,6 +227,8 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(({ src, poster, title, heig
           poster={poster}
           controls={false}
           playsInline
+          muted={muted}
+          autoPlay={autoPlay}
         />
       ) : (
         <div
