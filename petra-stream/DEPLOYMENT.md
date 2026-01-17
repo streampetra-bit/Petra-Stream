@@ -34,8 +34,10 @@ webrtcAdditionalHosts:
   - studio.yourdomain.com
   - <public-ip>
 
-# Use standard HLS to reduce latency spikes and player stalls
-hlsVariant: standard
+# HLS variant notes:
+# - WebRTC publish uses Opus audio, so you MUST use fMP4 (or lowLatency) for HLS.
+# - RTMP/OBS publish can use AAC, so standard MPEG-TS is ok.
+hlsVariant: fmp4
 hlsSegmentDuration: 4s
 hlsSegmentCount: 6
 hlsAlwaysRemux: yes
