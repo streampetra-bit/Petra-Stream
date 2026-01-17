@@ -177,9 +177,9 @@ export default function CreatePage(): JSX.Element {
       const params = url.searchParams;
       if (!params.has("video-codec")) params.set("video-codec", "h264/90000");
       if (!params.has("audio-codec")) params.set("audio-codec", "opus/48000");
-      if (!params.has("video-bitrate")) params.set("video-bitrate", "2500");
-      if (!params.has("audio-bitrate")) params.set("audio-bitrate", "96");
-      if (!params.has("video-framerate")) params.set("video-framerate", "30");
+      if (!params.has("video-bitrate")) params.set("video-bitrate", "1500");
+      if (!params.has("audio-bitrate")) params.set("audio-bitrate", "64");
+      if (!params.has("video-framerate")) params.set("video-framerate", "24");
       if (!params.has("video-width")) params.set("video-width", "1280");
       if (!params.has("video-height")) params.set("video-height", "720");
       if (!params.has("audio-voice")) params.set("audio-voice", "true");

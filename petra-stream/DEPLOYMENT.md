@@ -38,6 +38,7 @@ webrtcAdditionalHosts:
 hlsVariant: standard
 hlsSegmentDuration: 4s
 hlsSegmentCount: 6
+hlsAlwaysRemux: yes
 
 paths:
   all:
