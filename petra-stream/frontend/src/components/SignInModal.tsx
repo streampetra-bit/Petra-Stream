@@ -1,5 +1,6 @@
 // src/components/SignInModal.tsx
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import api from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
 import { AuthUser, writeAuth } from "../lib/auth";
@@ -21,12 +22,18 @@ export default function SignInModal({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     setMode(defaultMode);
   }, [defaultMode]);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -91,10 +98,18 @@ export default function SignInModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div ref={ref} className="relative bg-surface/95 text-text rounded-xl w-full max-w-sm p-6 glass-card">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto px-4 pb-8"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 6rem)" }}
+    >
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        ref={ref}
+        className="relative bg-surface/95 text-text rounded-xl w-full max-w-sm p-6 glass-card max-h-[calc(100vh-8rem)] overflow-y-auto"
+      >
         <h3 className="text-lg font-semibold">{mode === "login" ? "Sign in" : "Create account"}</h3>
         <p className="text-sm subtle mt-1">
           Use email login for viewers. Connect a wallet later for on-chain actions.
@@ -163,6 +178,7 @@ export default function SignInModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

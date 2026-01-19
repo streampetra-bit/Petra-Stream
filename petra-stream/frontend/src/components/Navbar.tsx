@@ -5,7 +5,6 @@ import Logo from "../assets/logo.svg?url";
 import ThemeToggle from "./ThemeToggle";
 import WalletConnect from "./WalletConnect";
 import UserDropdown from "./UserDropdown";
-import clsx from "clsx";
 
 export default function Navbar(): JSX.Element {
   const [open, setOpen] = React.useState(false);
@@ -22,153 +21,145 @@ export default function Navbar(): JSX.Element {
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-bg/90 backdrop-blur-xl border-b border-white/6">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-bg/70 backdrop-blur-xl">
+      <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-6 flex-1">
           <Link to="/" className="flex items-center gap-3">
             <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg neon-ring"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg"
               style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))" }}
             >
-              <img src={Logo} alt="logo" className="w-7 h-7 brightness-110" />
+              <img src={Logo} alt="Petra Stream logo" className="w-7 h-7 brightness-110" />
             </div>
             <div className="hidden sm:block">
               <div className="text-lg font-extrabold text-text leading-tight">Petra Stream</div>
-              <div className="text-xs muted">Live on Somnia</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live on Somnia</div>
             </div>
           </Link>
-        </div>
 
-        {/* Desktop center: search + nav */}
-        <div className="hidden md:flex items-center gap-6 flex-1">
-          <form onSubmit={onSubmitSearch} className="relative flex-1 max-w-xl">
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-subtle">
+            <Link to="/" className="text-primary">
+              Home
+            </Link>
+            <Link to="/explore" className="hover:text-primary transition-colors">
+              Explore
+            </Link>
+            <Link to="/categories" className="hover:text-primary transition-colors">
+              Categories
+            </Link>
+          </nav>
+
+          <form onSubmit={onSubmitSearch} className="relative hidden lg:flex items-center flex-1 max-w-md">
+            <span className="absolute left-3 text-subtle">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z" />
+              </svg>
+            </span>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search streams, creators, tags..."
+              placeholder="Search streams..."
               aria-label="Search streams"
-              className="w-full rounded-full border border-white/6 bg-surface/80 px-4 py-2 pr-10 text-sm text-text placeholder:subtle focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+              className="w-full rounded-full border border-white/10 bg-surface/70 px-10 py-2 text-sm text-text placeholder:subtle focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
             />
-            <button
-              type="submit"
-              aria-label="Search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 hover:bg-surface/70"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z" />
-              </svg>
-            </button>
+            <span className="absolute right-3 rounded-md bg-bg/70 px-2 py-0.5 text-[10px] font-semibold text-subtle">
+              S
+            </span>
           </form>
-
-          <nav className="flex items-center gap-3 text-text font-medium">
-            <Link to="/" className="px-3 py-1.5 rounded-md hover:text-accent transition-colors">
-              Home
-            </Link>
-            <Link to="/explore" className="px-3 py-1.5 rounded-md hover:text-accent transition-colors">
-              Explore
-            </Link>
-            <Link to="/categories" className="px-3 py-1.5 rounded-md hover:text-accent transition-colors">
-              Categories
-            </Link>
-            <Link
-              to="/create"
-              className="px-3 py-1.5 rounded-md btn-primary text-sm font-semibold shadow-md hover:opacity-95"
-            >
-              Create
-            </Link>
-          </nav>
         </div>
 
-        {/* Right actions */}
         <div className="flex items-center gap-3">
-          {/* notifications */}
+          <Link
+            to="/create"
+            className="hidden md:inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/20 transition"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m-7-7h14" />
+            </svg>
+            Create
+          </Link>
+
           <Link
             to="/notifications"
-            className="hidden md:inline-flex items-center justify-center p-2 rounded-lg border border-white/6 bg-surface/80 hover:brightness-105 transition"
+            className="hidden md:inline-flex items-center justify-center p-2 rounded-full border border-white/10 bg-surface/70 hover:brightness-110 transition"
             aria-label="Notifications"
             title="Notifications"
           >
             <span className="relative">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h11z" />
+              <svg className="h-5 w-5 text-text" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h11z" />
               </svg>
-              <span className="absolute -top-1 -right-1 inline-flex h-2 w-2 rounded-full bg-pink-500 ring-2 ring-white/6" />
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-bg/60" />
             </span>
           </Link>
 
-          {/* theme toggle */}
-          <div className="hidden sm:inline-flex">
-            <ThemeToggle />
-          </div>
+          <div className="hidden md:block h-6 w-px bg-white/10" />
 
-          {/* wallet */}
           <div className="hidden md:block">
             <WalletConnect />
           </div>
 
-          {/* user dropdown */}
           <div className="hidden md:block">
             <UserDropdown />
           </div>
 
-          {/* Mobile hamburger */}
+          <div className="hidden lg:block">
+            <ThemeToggle />
+          </div>
+
           <button
             onClick={() => setOpen((s) => !s)}
-            className="inline-flex items-center justify-center p-2 rounded-md md:hidden border border-white/6 bg-surface/80 hover:brightness-105 transition"
+            className="inline-flex items-center justify-center p-2 rounded-full md:hidden border border-white/10 bg-surface/70"
             aria-expanded={open}
             aria-label="Open menu"
           >
             {open ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg className="h-6 w-6 text-text" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg className="h-6 w-6 text-text" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             )}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {open && (
-        <div className="md:hidden border-t border-white/6 bg-bg/95 text-text">
-          <div className="px-4 py-4 space-y-3">
-            <form onSubmit={onSubmitSearch} className="w-full">
-              <div className="relative">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search streams, creators..."
-                  className="w-full rounded-full border border-white/6 bg-surface/80 px-4 py-2 pr-10 text-text placeholder:subtle focus:outline-none"
-                />
-                <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z" />
-                  </svg>
-                </button>
-              </div>
+        <div className="md:hidden border-t border-white/10 bg-bg/95">
+          <div className="px-6 py-4 space-y-4">
+            <form onSubmit={onSubmitSearch} className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z" />
+                </svg>
+              </span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search streams..."
+                className="w-full rounded-full border border-white/10 bg-surface/70 px-10 py-2 text-sm text-text placeholder:subtle"
+              />
             </form>
 
             <div className="flex flex-col gap-1">
-              <Link to="/" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
+              <Link to="/" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
                 Home
               </Link>
-              <Link to="/explore" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
+              <Link to="/explore" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
                 Explore
               </Link>
-              <Link to="/categories" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
+              <Link to="/categories" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
                 Categories
               </Link>
-              <Link to="/notifications" onClick={() => setOpen(false)} className="px-3 py-2 rounded-md hover:bg-surface/80 transition">
+              <Link to="/notifications" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
                 Notifications
               </Link>
               <Link
                 to="/create"
                 onClick={() => setOpen(false)}
-                className="px-3 py-2 rounded-md btn-primary text-center font-semibold shadow-md hover:opacity-95"
+                className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-primary/15 px-4 py-2 text-sm font-semibold text-primary"
               >
                 Create
               </Link>
@@ -179,11 +170,11 @@ export default function Navbar(): JSX.Element {
             </div>
 
             <div className="pt-2">
-              <ThemeToggle />
+              <UserDropdown />
             </div>
 
             <div className="pt-2">
-              <UserDropdown />
+              <ThemeToggle />
             </div>
           </div>
         </div>

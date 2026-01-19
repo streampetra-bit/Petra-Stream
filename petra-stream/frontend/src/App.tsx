@@ -32,40 +32,56 @@ function Layout() {
   const location = useLocation();
   // hide sidebar on watch / stream detail pages for better focus
   const isStreamPage = location.pathname.startsWith("/stream/") && location.pathname.split("/").length > 2;
+  const isDashboardPage = location.pathname.startsWith("/dashboard");
+  const showNavbar = !isDashboardPage;
+  const showSidebar = !isStreamPage && !isDashboardPage;
+
+  const routes = (
+    <Routes>
+      {/* Core pages */}
+      <Route path="/" element={<Home />} />
+      <Route path="/streams" element={<Streams />} />
+      <Route path="/stream/:id" element={<StreamDetail />} />
+      <Route path="/explore" element={<Explore />} />
+      <Route path="/profile/:id" element={<ProfilePage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/create" element={<CreatePage />} />
+
+      {/* UI routes */}
+      <Route path="/top" element={<Top />} />
+      <Route path="/settings" element={<Settings />} />
+      <Route path="/categories" element={<Categories />} />
+      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/monitor" element={<Monitor />} />
+
+      {/* aliases */}
+      <Route path="/home" element={<Navigate to="/" replace />} />
+
+      {/* catch-all */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+
+  if (isDashboardPage) {
+    return (
+      <div className="min-h-screen bg-bg text-text">
+        <AuthGate />
+        <main className="min-h-screen">{routes}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg text-text">
       <AuthGate />
-      <Navbar />
+      {showNavbar && <Navbar />}
 
       <div className="container mx-auto px-4 py-6">
         <div className="flex gap-6">
-          {!isStreamPage && <Sidebar />}
+          {showSidebar && <Sidebar />}
 
           <main className="flex-1">
-            <Routes>
-              {/* Core pages */}
-              <Route path="/" element={<Home />} />
-              <Route path="/streams" element={<Streams />} />
-              <Route path="/stream/:id" element={<StreamDetail />} />
-              <Route path="/explore" element={<Explore />} />
-              <Route path="/profile/:id" element={<ProfilePage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/create" element={<CreatePage />} />
-
-              {/* UI routes */}
-              <Route path="/top" element={<Top />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/categories" element={<Categories />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/monitor" element={<Monitor />} />
-
-              {/* aliases */}
-              <Route path="/home" element={<Navigate to="/" replace />} />
-
-              {/* catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            {routes}
           </main>
         </div>
       </div>

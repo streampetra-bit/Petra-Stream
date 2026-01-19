@@ -1,24 +1,8 @@
 // src/components/Sidebar.tsx
-import React, { useEffect, useState } from "react";
-import SidebarItem from "./SidebarItem";
-import clsx from "clsx";
-import { useToast } from "../contexts/ToastContext";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import api from "../lib/api";
-
-/**
- * Sidebar
- *
- * - Collapsible (persisted)
- * - Drawer on mobile
- * - Shows categories, trending tags, top streamers, recently watched
- *
- * Usage:
- * <div className="flex">
- *   <Sidebar />
- *   <main className="flex-1">...</main>
- * </div>
- */
+import { useToast } from "../contexts/ToastContext";
 
 type Streamer = { id: string; name: string; viewers?: number; avatar?: string; address?: string };
 
@@ -32,24 +16,84 @@ const defaultCategories = [
 
 const defaultTrending = ["chill", "onchain", "live-coding", "music", "nft"];
 
+const AVATAR_GRADIENTS = [
+  "linear-gradient(135deg, #fb7185, #f97316)",
+  "linear-gradient(135deg, #38bdf8, #6366f1)",
+  "linear-gradient(135deg, #34d399, #14b8a6)",
+  "linear-gradient(135deg, #fbbf24, #f97316)",
+  "linear-gradient(135deg, #a78bfa, #ec4899)",
+];
+
+function formatNumber(n?: number) {
+  if (n === null || n === undefined) return "--";
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+}
+
+function mapTop(rows: any[]): Streamer[] {
+  return rows.map((row, index) => {
+    const id = row?.streamer || row?.username || row?.address || row?.id || `streamer-${index}`;
+    const name = row?.streamer || row?.username || row?.address || row?.id || "streamer";
+    return {
+      id: String(id),
+      name: String(name),
+      viewers: Number(row?.viewerCount ?? row?.viewers ?? 0),
+      avatar: row?.avatar,
+    };
+  });
+}
+
+function getCategoryIcon(id: string) {
+  switch (id) {
+    case "gaming":
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 15h2m6 0h2M12 6a6 6 0 00-6 6v3a3 3 0 003 3h6a3 3 0 003-3v-3a6 6 0 00-6-6z" />
+        </svg>
+      );
+    case "music":
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 18V5l12-2v13" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="16" r="3" />
+        </svg>
+      );
+    case "art":
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3a9 9 0 100 18 4 4 0 004-4h-1a3 3 0 01-3-3 3 3 0 013-3h1a4 4 0 00-4-4z" />
+        </svg>
+      );
+    case "tech":
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+        </svg>
+      );
+    case "finance":
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7h16M6 7v10a2 2 0 002 2h8a2 2 0 002-2V7" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m-7-7h14" />
+        </svg>
+      );
+  }
+}
+
 export default function Sidebar({
   apiPrefix = "/api",
-  initialCollapsed = false,
   className,
 }: {
-  apiPrefix?: string; // optional base to fetch (if you want live data)
-  initialCollapsed?: boolean;
+  apiPrefix?: string;
   className?: string;
 }) {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem("sidebar_collapsed");
-      return raw ? JSON.parse(raw) : initialCollapsed;
-    } catch {
-      return initialCollapsed;
-    }
-  });
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [categories, setCategories] = useState<{ id: string; label: string }[]>(defaultCategories);
   const [trending, setTrending] = useState<string[]>(defaultTrending);
   const [topStreamers, setTopStreamers] = useState<Streamer[]>([]);
@@ -61,20 +105,10 @@ export default function Sidebar({
       return [];
     }
   });
-
   const toast = useToast();
   const location = useLocation();
 
   useEffect(() => {
-    // Persist collapsed state
-    try {
-      localStorage.setItem("sidebar_collapsed", JSON.stringify(collapsed));
-    } catch {}
-  }, [collapsed]);
-
-  useEffect(() => {
-    // Try fetching categories/top streamers/trending if backend available,
-    // otherwise keep placeholders.
     (async () => {
       try {
         const catRes = await api.get(`${apiPrefix}/categories`).catch(() => null);
@@ -84,17 +118,16 @@ export default function Sidebar({
         if (trendRes?.data?.data) setTrending(trendRes.data.data);
 
         const topRes = await api.get(`${apiPrefix}/streams/top`).catch(() => null);
-        if (topRes?.data?.data) setTopStreamers(topRes.data.data.slice(0, 6));
-        else if (Array.isArray(topRes?.data)) setTopStreamers(topRes.data.slice(0, 6));
+        if (topRes?.data?.data) setTopStreamers(mapTop(topRes.data.data));
+        else if (Array.isArray(topRes?.data)) setTopStreamers(mapTop(topRes.data));
       } catch {
-        // ignore - fall back to defaults
+        // ignore and fall back to defaults
       }
     })();
   }, [apiPrefix]);
 
   function followStreamer(s: Streamer) {
-    // small UI feedback; real follow flow would call API & auth
-    toast.success("Following", `You're now following ${s.name}`, 2000);
+    toast.success("Following", `You are now following ${s.name}`, 2000);
   }
 
   function addRecent(s: Streamer) {
@@ -102,248 +135,130 @@ export default function Sidebar({
       const next = [s, ...recent.filter((r) => r.id !== s.id)].slice(0, 8);
       setRecent(next);
       localStorage.setItem("recent_watched", JSON.stringify(next));
-    } catch {}
+    } catch {
+      // ignore storage issues
+    }
   }
 
-  // expose a helper to mark a stream as recently watched:
   useEffect(() => {
-    // If the location is a stream route, add to recent automatically.
-    // This attempts to detect /stream/:id by url; adjust to your routes.
-    const m = location.pathname.match(/\/stream\/([^/]+)/);
-    if (m) {
-      const id = m[1];
-      // we add a lightweight placeholder entry
+    const match = location.pathname.match(/\/stream\/([^/]+)/);
+    if (match) {
+      const id = match[1];
       addRecent({ id, name: id, viewers: 0 });
     }
-  }, [location.pathname]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
-  const navCompact = collapsed;
+  const fallbackTop: Streamer[] = [
+    { id: "alice.eth", name: "Alice.eth", viewers: 240 },
+    { id: "bob.lens", name: "Bob.lens", viewers: 180 },
+    { id: "carol.sol", name: "Carol.sol", viewers: 140 },
+  ];
 
-  // compute safeTopStreamers to avoid inline ternary complexity in JSX
-  const fallbackTop = [
-    { id: "alice", name: "alice", viewers: 240 },
-    { id: "bob", name: "bob", viewers: 180 },
-    { id: "carol", name: "carol", viewers: 140 },
-  ] as Streamer[];
-
-  const shownTop = (topStreamers && topStreamers.length > 0 ? topStreamers : fallbackTop).slice(
-    0,
-    navCompact ? 3 : 6
+  const shownTop = useMemo(
+    () => (topStreamers.length ? topStreamers : fallbackTop).slice(0, 3),
+    [topStreamers]
   );
 
   return (
-    <>
-      {/* Mobile drawer overlay */}
-      <div className={clsx("md:hidden", drawerOpen ? "fixed inset-0 z-40" : "hidden")} aria-hidden={!drawerOpen}>
-        <div className="absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} />
-      </div>
-
-      {/* Sidebar container */}
-      <aside
-        className={clsx(
-          "hidden md:flex flex-col h-screen sticky top-16 p-4 gap-4 bg-bg",
-          navCompact ? "w-20" : "w-72",
-          "transition-all",
-          className
-        )}
-        aria-label="Sidebar navigation"
-      >
-        {/* Collapse toggle */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-text">{navCompact ? "PS" : "Explore"}</div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCollapsed((s) => !s)}
-              className="p-1 rounded-md border"
-              title={collapsed ? "Expand" : "Collapse"}
-              aria-pressed={collapsed}
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
-            >
-              {collapsed ? "⯈" : "⯆"}
-            </button>
-
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="p-1 rounded-md border md:hidden"
-              aria-label="Open mobile menu"
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
-            >
-              ☰
-            </button>
-          </div>
-        </div>
-
-        {/* Primary nav: categories */}
-        <nav className="space-y-2">
-          <div className="text-xs subtle px-1">{navCompact ? "" : "Categories"}</div>
-          <div className="grid gap-2">
+    <aside
+      className={`hidden xl:block w-64 shrink-0 h-[calc(100vh-110px)] sticky top-24 overflow-y-auto pr-4 ${className || ""}`}
+      aria-label="Sidebar navigation"
+    >
+      <div className="space-y-8">
+        <div>
+          <h3 className="text-xs font-bold text-subtle uppercase tracking-[0.3em] mb-4">Categories</h3>
+          <ul className="space-y-1">
             {categories.map((c) => (
-              <SidebarItem
-                key={c.id}
-                compact={navCompact}
-                label={c.label}
-                icon={
-                  <svg className="h-5 w-5 text-text" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2l3 6 6 .5-4.5 3.5L19 20l-7-4-7 4 1.5-7L2 8.5 8 8l3-6z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                }
-                onClick={() => {
-                  // navigate to category (adjust route if needed)
-                  window.location.href = `/explore?category=${encodeURIComponent(c.id)}`;
-                }}
-              />
+              <li key={c.id}>
+                <Link
+                  to={`/explore?category=${encodeURIComponent(c.id)}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text hover:bg-white/5 transition"
+                >
+                  <span className="h-8 w-8 rounded-xl bg-surface/60 flex items-center justify-center">
+                    {getCategoryIcon(c.id)}
+                  </span>
+                  {c.label}
+                </Link>
+              </li>
             ))}
-          </div>
-        </nav>
+          </ul>
+        </div>
 
-        {/* Trending tags */}
         <div>
-          <div className="text-xs subtle px-1">{navCompact ? "" : "Trending"}</div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {trending.map((t) => (
-              <button
-                key={t}
-                onClick={() => (window.location.href = `/explore?tag=${encodeURIComponent(t)}`)}
-                className={clsx("text-xs px-2 py-1 rounded-md", navCompact ? "hidden" : "bg-bg/10")}
-                title={`Search tag ${t}`}
+          <h3 className="text-xs font-bold text-subtle uppercase tracking-[0.3em] mb-4">Trending</h3>
+          <div className="flex flex-wrap gap-2">
+            {trending.slice(0, 6).map((tag) => (
+              <Link
+                key={tag}
+                to={`/explore?tag=${encodeURIComponent(tag)}`}
+                className="text-xs rounded-full bg-surface/70 px-3 py-1.5 text-subtle hover:text-primary hover:bg-white/5 transition"
               >
-                #{t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Top streamers */}
-        <div>
-          <div className="flex items-center justify-between">
-            <div className="text-xs subtle px-1">{navCompact ? "" : "Top streamers"}</div>
-            {!navCompact && (
-              <Link to="/top" className="text-xs subtle">
-                View all
+                #{tag}
               </Link>
-            )}
-          </div>
-
-          <div className="mt-2 space-y-2">
-            {shownTop.map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-2">
-                <Link to={`/profile/${s.id}`} className="inline-flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-md neon-ring flex items-center justify-center bg-surface/60">
-                    <span className="text-xs font-mono">{(s.name || "??").slice(0, 2).toUpperCase()}</span>
-                  </div>
-                  {!navCompact && <div className="text-sm text-text">{s.name}</div>}
-                </Link>
-
-                {!navCompact && (
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs subtle">{s.viewers ?? 0}</div>
-                    <button onClick={() => followStreamer(s as any)} className="px-2 py-1 rounded-md border text-xs">
-                      Follow
-                    </button>
-                  </div>
-                )}
-              </div>
             ))}
           </div>
         </div>
 
-        {/* Recently watched */}
-        <div className="mt-auto">
-          <div className="text-xs subtle px-1">{navCompact ? "" : "Recently watched"}</div>
-          <div className="mt-2 space-y-2">
-            {recent.length ? (
-              recent.map((r) => (
-                <Link key={r.id} to={`/stream/${r.id}`} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-surface/70">
-                  <div className="w-8 h-8 rounded-md neon-ring flex items-center justify-center bg-surface/60">
-                    <span className="text-xs font-mono">{(r.name || "??").slice(0, 2).toUpperCase()}</span>
-                  </div>
-                  {!navCompact && <div className="text-sm text-text">{r.name}</div>}
-                </Link>
-              ))
-            ) : (
-              <div className="text-xs subtle px-2 py-2">No recent streams</div>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      {/* Mobile drawer content (same structure as sidebar but in a drawer) */}
-      {drawerOpen && (
-        <div className="fixed z-50 inset-y-0 left-0 w-80 bg-bg/95 p-4 shadow-lg md:hidden">
+        <div>
           <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-semibold text-text">Explore</div>
-            <button onClick={() => setDrawerOpen(false)} className="p-1 rounded border" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-              ✕
-            </button>
+            <h3 className="text-xs font-bold text-subtle uppercase tracking-[0.3em]">Top Streamers</h3>
+            <Link to="/top" className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary hover:underline">
+              View all
+            </Link>
           </div>
-
-          <div className="space-y-4 overflow-auto h-[calc(100vh-120px)]">
-            <div>
-              <div className="text-xs subtle mb-2">Categories</div>
-              <div className="grid gap-2">
-                {categories.map((c) => (
-                  <SidebarItem key={c.id} label={c.label} onClick={() => (window.location.href = `/explore?category=${encodeURIComponent(c.id)}`)} />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs subtle mb-2">Trending</div>
-              <div className="flex flex-wrap gap-2">
-                {trending.map((t) => (
-                  <button key={t} onClick={() => (window.location.href = `/explore?tag=${encodeURIComponent(t)}`)} className="text-xs px-2 py-1 rounded-md bg-bg/10">
-                    #{t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs subtle mb-2">Top streamers</div>
-              <div className="space-y-2">
-                {(
-                  (topStreamers && topStreamers.length > 0 ? topStreamers : [
-                    { id: "alice", name: "alice", viewers: 240 },
-                    { id: "bob", name: "bob", viewers: 180 },
-                  ] as Streamer[])
-                ).map((s) => (
-                  <div key={s.id} className="flex items-center justify-between gap-2">
-                    <Link to={`/profile/${s.id}`} className="inline-flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-md neon-ring flex items-center justify-center bg-surface/60">
-                        <span className="text-xs font-mono">{(s.name || "??").slice(0, 2).toUpperCase()}</span>
-                      </div>
-                      <div className="text-sm text-text">{s.name}</div>
-                    </Link>
-
-                    <button onClick={() => followStreamer(s as any)} className="px-2 py-1 rounded-md border text-xs">
-                      Follow
-                    </button>
+          <ul className="space-y-4">
+            {shownTop.map((s, index) => (
+              <li key={s.id} className="flex items-center justify-between gap-3">
+                <Link to={`/profile/${s.id}`} className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md"
+                    style={{ background: AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length] }}
+                  >
+                    {s.name.slice(0, 2).toUpperCase()}
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div>
+                    <div className="text-sm font-semibold text-text leading-tight">{s.name}</div>
+                    <div className="text-[10px] text-subtle mt-1 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      {formatNumber(s.viewers)} watching
+                    </div>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => followStreamer(s)}
+                  className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 font-bold hover:bg-primary hover:border-primary hover:text-bg transition"
+                >
+                  Follow
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-            <div>
-              <div className="text-xs subtle mb-2">Recently watched</div>
-              <div className="space-y-2">
-                {recent.length ? (
-                  recent.map((r) => (
-                    <Link key={r.id} to={`/stream/${r.id}`} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-surface/70">
-                      <div className="w-8 h-8 rounded-md neon-ring flex items-center justify-center bg-surface/60">
-                        <span className="text-xs font-mono">{(r.name || "??").slice(0, 2).toUpperCase()}</span>
-                      </div>
-                      <div className="text-sm text-text">{r.name}</div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="text-xs subtle">No recent streams</div>
-                )}
-              </div>
+        {recent.length > 0 && (
+          <div>
+            <h3 className="text-xs font-bold text-subtle uppercase tracking-[0.3em] mb-4">Recently watched</h3>
+            <div className="space-y-2">
+              {recent.slice(0, 4).map((r, index) => (
+                <Link
+                  key={r.id}
+                  to={`/stream/${r.id}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition"
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-md"
+                    style={{ background: AVATAR_GRADIENTS[(index + 2) % AVATAR_GRADIENTS.length] }}
+                  >
+                    {r.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="text-sm text-text truncate">{r.name}</div>
+                </Link>
+              ))}
             </div>
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </div>
+    </aside>
   );
 }

@@ -1,7 +1,7 @@
 /* src/styles/tailwind.css */
 
 /* 1) Fonts (Google) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;800&family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -255,4 +255,39 @@
   /* text emphasis */
   .muted { color: color-mix(in srgb, rgb(var(--color-text-rgb)) 60%, transparent); }
   .subtle { color: color-mix(in srgb, rgb(var(--color-text-rgb)) 72%, transparent); }
+
+  .create-page {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .create-page h1,
+  .create-page h2,
+  .create-page h3,
+  .create-page h4 {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .create-page .font-mono,
+  .create-page .font-studio-mono {
+    font-family: "Space Grotesk", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+  }
+
+  .explore-page {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .explore-page h1,
+  .explore-page h2,
+  .explore-page h3,
+  .explore-page h4 {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  .categories-page {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .categories-page h1,
+  .categories-page h2,
+  .categories-page h3,
+  .categories-page h4 {
+    font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
 }
