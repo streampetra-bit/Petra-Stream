@@ -168,6 +168,13 @@ const ACTIVITY = [
   },
 ];
 
+const PROFILE = {
+  name: "Ariana Wells",
+  role: "Lead Creator",
+  avatar:
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuCBIy49bC6J1_AOuZzPm2dHZwjNxT4pYjdQ7n5K1UwPm3jJuDpQhJqYU6aKGmE1n7E-5avZiIFqYGOVTeVtjynD_0PeL5H34gcw5yY2L6TLzJFGAwjQcBic1scWk0JF9cpw7D4tV2bCfArwA_cFM5_wCSb687yyDWhP3DL9B2oExY1u5RGKV2eFxE1cbThXr8jvOodzerHsBKk87lF7OoLQn-kcrT6Ho6pXbopWlp2Uo82onEPLqLqD8KWSNtRNdQL0Dlocp05QgA8",
+};
+
 export default function Dashboard(): JSX.Element {
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -180,7 +187,7 @@ export default function Dashboard(): JSX.Element {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v18m-7-7h14" />
                 </svg>
               </div>
-              <div className="text-xl font-extrabold tracking-tight">Stream3</div>
+              <div className="text-xl font-extrabold tracking-tight">Petra Stream</div>
             </div>
 
             <nav className="flex flex-col gap-1">
@@ -243,24 +250,37 @@ export default function Dashboard(): JSX.Element {
 
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="sticky top-0 z-10 border-b border-white/10 bg-bg/80 backdrop-blur-xl px-6 py-4 flex flex-wrap items-center gap-4 justify-between">
-            <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10 w-full max-w-xl">
-              <svg className="h-4 w-4 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z" />
-              </svg>
-              <input
-                className="w-full bg-transparent border-none text-sm text-text placeholder:subtle focus:ring-0"
-                placeholder="Search streamers, clips, or NFT collections"
-                type="text"
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <button className="relative p-2 text-subtle hover:text-text transition">
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h11z" />
+            <div className="flex flex-1 flex-wrap items-center gap-4">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
                 </svg>
-                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-pink-500 border border-bg" />
-              </button>
-              <div className="h-6 w-px bg-white/10" />
+                Back
+              </Link>
+
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10 w-full max-w-xl">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1116.65 16.65z"
+                    />
+                  </svg>
+                </div>
+                <input
+                  className="w-full bg-transparent border-none text-sm text-text placeholder:text-white/40 focus:ring-0"
+                  placeholder="Search clips, on-chain sales, and creator signals..."
+                  type="text"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
               <Link
                 to="/create"
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-bg shadow-glow-primary hover:brightness-110 transition"
@@ -270,13 +290,16 @@ export default function Dashboard(): JSX.Element {
                 </svg>
                 Go live
               </Link>
-              <div
-                className="h-10 w-10 rounded-full border-2 border-primary/40 bg-center bg-cover"
-                style={{
-                  backgroundImage:
-                    "url(https://lh3.googleusercontent.com/aida-public/AB6AXuCBIy49bC6J1_AOuZzPm2dHZwjNxT4pYjdQ7n5K1UwPm3jJuDpQhJqYU6aKGmE1n7E-5avZiIFqYGOVTeVtjynD_0PeL5H34gcw5yY2L6TLzJFGAwjQcBic1scWk0JF9cpw7D4tV2bCfArwA_cFM5_wCSb687yyDWhP3DL9B2oExY1u5RGKV2eFxE1cbThXr8jvOodzerHsBKk87lF7OoLQn-kcrT6Ho6pXbopWlp2Uo82onEPLqLqD8KWSNtRNdQL0Dlocp05QgA8)",
-                }}
-              />
+              <Link to="/profile/me" className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2">
+                <div
+                  className="h-10 w-10 rounded-full border-2 border-primary/40 bg-center bg-cover"
+                  style={{ backgroundImage: `url(${PROFILE.avatar})` }}
+                />
+                <div className="hidden sm:flex flex-col leading-tight">
+                  <span className="text-sm font-semibold text-text">{PROFILE.name}</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-subtle">{PROFILE.role}</span>
+                </div>
+              </Link>
             </div>
           </header>
 
