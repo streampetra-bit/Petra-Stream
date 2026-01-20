@@ -247,7 +247,7 @@ export default function Home(): JSX.Element {
           <div className="absolute -right-24 -bottom-24 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,rgba(124,255,109,0.2),rgba(0,0,0,0))] blur-3xl" />
         </div>
 
-        <div className="relative z-10 p-6 sm:p-8 lg:p-12 min-h-[420px] flex flex-col justify-end gap-6">
+        <div className="relative z-10 p-6 sm:p-8 lg:p-12 min-h-[320px] sm:min-h-[420px] flex flex-col justify-end gap-6">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2 rounded-full bg-red-500 px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wide">
               <span className="h-2 w-2 rounded-full bg-white animate-pulse" />

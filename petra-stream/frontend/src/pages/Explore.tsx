@@ -168,7 +168,7 @@ export default function Explore(): JSX.Element {
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">
                 Explore feed
               </div>
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-text">Explore</h1>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-text">Explore</h1>
               <p className="text-sm md:text-base text-subtle max-w-2xl">
                 Discover the next generation of creators on the decentralized web. Crystal clear streams and direct
                 ownership in one place.
@@ -398,7 +398,7 @@ export default function Explore(): JSX.Element {
                 Total volume traded through stream tips in the last 24h.
               </p>
             </div>
-            <div className="flex flex-wrap gap-10 text-center">
+            <div className="flex flex-wrap gap-6 sm:gap-10 text-center">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-1">Total Tips</p>
                 <p className="text-2xl font-black text-primary">124.5 ETH</p>

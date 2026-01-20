@@ -233,6 +233,7 @@ export default function CreatePage(): JSX.Element {
       await api.post("/api/streams/stop");
       setIsLive(false);
       setIsPrepared(true);
+      setShowPublisher(false);
       toast.info("Stream offline", "You can go live again with the same key.", 2200);
     } catch (err) {
       if ((err as any)?.response?.status === 401) {
@@ -325,6 +326,7 @@ export default function CreatePage(): JSX.Element {
       : "Prepare broadcast";
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
+  const showStopButton = isPrepared || isLive;
 
   useEffect(() => {
     if (!isPrepared || !playbackUrl || isLive) return;
@@ -352,7 +354,7 @@ export default function CreatePage(): JSX.Element {
         <div className="absolute bottom-0 -right-64 h-[900px] w-[900px] rounded-full bg-accent/5 blur-[200px]" />
       </div>
 
-      <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-12 space-y-12">
+      <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-8 sm:py-10 lg:py-12 space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           <div className="lg:col-span-7 space-y-10">
             <section className="space-y-5">
@@ -466,7 +468,7 @@ export default function CreatePage(): JSX.Element {
                     <iframe
                       title="Broadcast studio"
                       src={webrtcPublishUrl}
-                      className="w-full h-[520px] bg-black"
+                      className="w-full h-[360px] sm:h-[420px] lg:h-[520px] bg-black"
                       allow="camera; microphone; autoplay; clipboard-write; display-capture"
                     />
                   </div>
@@ -483,7 +485,7 @@ export default function CreatePage(): JSX.Element {
             </section>
           </div>
           <div className="lg:col-span-5">
-            <div className="glass-card p-8 lg:p-10 rounded-[2.5rem] sticky top-28 max-h-[calc(100vh-180px)] overflow-y-auto">
+            <div className="glass-card p-6 sm:p-8 lg:p-10 rounded-[2.5rem] lg:sticky lg:top-28 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-2xl font-bold text-text flex items-center gap-3">
@@ -772,6 +774,15 @@ export default function CreatePage(): JSX.Element {
                 >
                   {loading ? "Working..." : primaryCtaLabel}
                 </button>
+                {showStopButton && (
+                  <button
+                    onClick={stopStream}
+                    disabled={loading}
+                    className="mt-4 w-full h-12 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-xs font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
+                  >
+                    Stop broadcasting
+                  </button>
+                )}
                 <div className="mt-4 flex items-center justify-center gap-2">
                   <span className="text-emerald-400 text-xs">*</span>
                   <p className="text-white/30 text-[9px] uppercase font-bold tracking-[0.2em]">

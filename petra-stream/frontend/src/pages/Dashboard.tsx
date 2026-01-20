@@ -249,7 +249,7 @@ export default function Dashboard(): JSX.Element {
         </aside>
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="sticky top-0 z-10 border-b border-white/10 bg-bg/80 backdrop-blur-xl px-6 py-4 flex flex-wrap items-center gap-4 justify-between">
+          <header className="sticky top-0 z-10 border-b border-white/10 bg-bg/80 backdrop-blur-xl px-4 sm:px-6 py-4 flex flex-wrap items-center gap-4 justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-4">
               <Link
                 to="/"
@@ -280,7 +280,7 @@ export default function Dashboard(): JSX.Element {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
               <Link
                 to="/create"
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-bg shadow-glow-primary hover:brightness-110 transition"

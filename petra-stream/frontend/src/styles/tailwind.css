@@ -164,7 +164,11 @@
 
 /* 4) Base element styles */
 @layer base {
-  html, body, #root { height: 100%; }
+  html, body, #root { min-height: 100%; }
+
+  html {
+    background: var(--color-bg);
+  }
 
   body {
     @apply antialiased;

@@ -21,6 +21,8 @@ export default function ProfileHeader({
   following?: number;
   children?: React.ReactNode;
 }) {
+  const initials = (displayName || username || "User").slice(0, 2).toUpperCase();
+
   return (
     <header className="glass-card flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
       <div className="flex items-start gap-4">
@@ -31,7 +33,7 @@ export default function ProfileHeader({
           )}
           style={{ background: avatar ? `url(${avatar}) center/cover` : undefined }}
         >
-          {!avatar && (displayName || username).slice(0, 2).toUpperCase()}
+          {!avatar && initials}
         </div>
 
         <div>
@@ -43,7 +45,7 @@ export default function ProfileHeader({
 
             {isLive ? (
               <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-red-600 text-white text-xs font-semibold">
-                ● Live
+                Live
               </div>
             ) : null}
           </div>
@@ -61,7 +63,11 @@ export default function ProfileHeader({
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">{children}</div>
+      <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-3">{children}</div>
     </header>
   );
 }
+
+
+
+

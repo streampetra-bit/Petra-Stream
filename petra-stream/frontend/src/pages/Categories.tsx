@@ -140,7 +140,7 @@ export default function Categories(): JSX.Element {
   }, [categories]);
 
   return (
-    <section className="relative categories-page">
+    <section className="relative categories-page pb-20 sm:pb-24">
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div
           className="absolute inset-0"
@@ -157,7 +157,7 @@ export default function Categories(): JSX.Element {
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">
           Premium categories
         </div>
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-text via-text to-white/50">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-text via-text to-white/50">
           Categories
         </h1>
         <p className="text-subtle text-lg max-w-2xl">
@@ -236,10 +236,10 @@ export default function Categories(): JSX.Element {
 
       <Link
         to="/create"
-        className={`fixed bottom-8 right-8 h-14 w-14 rounded-full bg-primary text-bg flex items-center justify-center shadow-glow-primary transition hover:scale-110 ${CATEGORY_STYLES.gaming.ring}`}
+        className={`fixed bottom-4 right-4 sm:bottom-8 sm:right-8 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary text-bg flex items-center justify-center shadow-glow-primary transition hover:scale-110 ${CATEGORY_STYLES.gaming.ring}`}
         aria-label="Start streaming"
       >
-        <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <svg className="h-6 w-6 sm:h-7 sm:w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14M5 12h14" />
         </svg>
       </Link>
