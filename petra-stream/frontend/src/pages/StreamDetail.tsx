@@ -2,13 +2,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "../lib/api";
-import socket from "../lib/socket";
 import TipModal from "../components/TipModal";
 import ChatPanel from "../components/ChatPanel";
 import ViewerList from "../components/ViewerList";
 import Player, { PlayerHandle } from "../components/Player";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
+import { readAuthUser } from "../lib/auth";
 
 type Stream = {
   id?: string;
@@ -26,7 +26,6 @@ type Stream = {
 /**
  * Robust StreamDetail page
  * - Falls back to MOCK_STREAMS if API fails / returns nothing
- * - Guards socket calls for environments without a socket server
  * - Provides related-streams fallback
  * - Keyboard shortcuts: Space => play/pause, T => tip, C => focus chat, F => fullscreen, Y => theater mode
  */
@@ -47,7 +46,7 @@ const MOCK_STREAMS: Stream[] = [
     id: "s2",
     streamer: "bob",
     title: "Synth beats & live visuals",
-    description: "Making music with modular synths — requests welcome.",
+    description: "Making music with modular synths - requests welcome.",
     viewerCount: 321,
     playbackUrl: "",
     thumbnail: "",
@@ -58,7 +57,7 @@ const MOCK_STREAMS: Stream[] = [
     id: "s3",
     streamer: "carol",
     title: "Retro gaming speedruns",
-    description: "Classic platformers and banter — come hang out.",
+    description: "Classic platformers and banter - come hang out.",
     viewerCount: 89,
     playbackUrl: "",
     thumbnail: "",
@@ -75,9 +74,18 @@ export default function StreamDetail(): JSX.Element {
   const [related, setRelated] = useState<Stream[]>([]);
   const [theaterMode, setTheaterMode] = useState(false);
   const [usingMock, setUsingMock] = useState(false);
+  const [authUser, setAuthUser] = useState(readAuthUser());
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
+  const currentUser =
+    authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "You";
+
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    return () => window.removeEventListener("auth-changed", refresh);
+  }, []);
 
   // fetch stream + related with fallbacks
   useEffect(() => {
@@ -159,27 +167,8 @@ export default function StreamDetail(): JSX.Element {
       }
     })();
 
-    // socket join (guarded)
-    try {
-      if (socket && typeof socket.connect === "function") {
-        socket.connect();
-        socket.emit?.("join", `stream:${streamId}`);
-      } else if (socket && typeof socket.emit === "function") {
-        // socket might be an instance already
-        socket.emit("join", `stream:${streamId}`);
-      }
-    } catch (err) {
-      console.warn("Socket join failed (dev or missing socket):", err);
-    }
-
     return () => {
       mounted = false;
-      try {
-        socket.emit?.("leave", `stream:${streamId}`);
-        if (typeof socket.disconnect === "function") socket.disconnect();
-      } catch (err) {
-        // ignore cleanup errors
-      }
     };
   }, [streamId]);
 
@@ -245,8 +234,8 @@ export default function StreamDetail(): JSX.Element {
 
   return (
     <>
-      <div className={`grid grid-cols-1 ${theaterMode ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
-        <div className={theaterMode ? "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
+      <div className={`grid grid-cols-1 ${theaterMode - "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
+        <div className={theaterMode - "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
           {usingMock && (
             <div className="glass-card p-3 text-sm text-yellow-300">
               Using mock stream data - backend returned no stream.
@@ -311,10 +300,10 @@ export default function StreamDetail(): JSX.Element {
 
               <button
                 onClick={() => setTheaterMode((s) => !s)}
-                className={`px-3 py-2 rounded-md border ${theaterMode ? "bg-surface/80" : ""}`}
+                className={`px-3 py-2 rounded-md border ${theaterMode - "bg-surface/80" : ""}`}
                 title="Theater mode (y)"
               >
-                {theaterMode ? "Exit Theater" : "Theater"}
+                {theaterMode - "Exit Theater" : "Theater"}
               </button>
             </div>
           </div>
@@ -322,19 +311,13 @@ export default function StreamDetail(): JSX.Element {
           <section>
             <h3 className="font-semibold mb-2 text-text">Activity</h3>
 
-            {/* ChatPanel typing input is focused via chatInputId keyboard handler.
-                ChatPanel may not accept an inputId prop depending on your implementation;
-                to avoid TypeScript/prop issues we cast to any here so runtime still receives it.
-                Consider updating ChatPanel to accept `inputId` for more robust integration. */}
-            {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-            {/* @ts-ignore */}
-            <ChatPanel streamId={String(streamId)} messages={[]} inputId={chatInputId} />
+            <ChatPanel streamId={String(streamId)} inputId={chatInputId} currentUser={currentUser} />
           </section>
 
           <section>
             <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {related.length ? (
+              {related.length - (
                 related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
               ) : (
                 <div className="muted">No related streams found.</div>

@@ -54,10 +54,67 @@ export default function ChatPanel({
   const toast = useToast();
   const typingTimer = useRef<number | null>(null);
 
-  // sync incoming socket messages
+  const storageKey = `chat-history:${streamId}`;
+
+  // sync incoming socket messages (only when provided)
   useEffect(() => {
-    setMsgs(messages || []);
+    if (messages && messages.length) {
+      setMsgs(messages);
+    }
   }, [messages]);
+
+  // load cached history for this stream
+  useEffect(() => {
+    if (!streamId) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          setMsgs(parsed);
+          return;
+        }
+      }
+    } catch {
+      // ignore cache errors
+    }
+    if (messages && messages.length) {
+      setMsgs(messages);
+    } else {
+      setMsgs([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamId]);
+
+  // persist local history
+  useEffect(() => {
+    if (!streamId) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(msgs.slice(-120)));
+    } catch {
+      // ignore storage errors
+    }
+  }, [msgs, streamId, storageKey]);
+
+  // connect + join room for server-side history/participants
+  useEffect(() => {
+    if (!streamId) return;
+    const room = `stream:${streamId}`;
+    try {
+      if (socket && typeof socket.connect === "function" && !socket.connected) {
+        socket.auth = { user: currentUser };
+        socket.connect();
+      }
+      socket.emit?.("join", { room, user: currentUser });
+    } catch (err) {
+      console.warn("Socket join failed", err);
+    }
+    return () => {
+      try {
+        socket.emit?.("leave", { room });
+      } catch {}
+    };
+  }, [streamId, currentUser]);
 
   useEffect(() => {
     // handler for incoming messages
@@ -71,7 +128,17 @@ export default function ChatPanel({
         ts: payload.ts ?? Date.now(),
         system: !!payload.system,
       };
-      setMsgs((s) => [...s, incoming]);
+      setMsgs((s) => {
+        if (incoming.id && s.some((m) => m.id === incoming.id)) return s;
+        const dupe = s.find(
+          (m) =>
+            m.user === incoming.user &&
+            m.text === incoming.text &&
+            Math.abs(m.ts - incoming.ts) < 2000
+        );
+        if (dupe) return s;
+        return [...s, incoming];
+      });
     };
 
     const onTyping = (payload: any) => {
@@ -110,8 +177,9 @@ export default function ChatPanel({
         text: m.text ?? "",
         ts: m.ts ?? Date.now(),
         system: !!m.system,
-        deleted: !!m.deleted
+        deleted: !!m.deleted,
       }));
+      if (!sanitized.length) return;
       setMsgs(sanitized);
     };
 
@@ -186,7 +254,7 @@ export default function ChatPanel({
       if (socket && socket.connected) {
         socket.emit("chat:message", { streamId, id, user: currentUser, text, ts: newMsg.ts });
       } else {
-        toast.info("You are offline — message queued locally", undefined, 3000);
+        toast.info("You are offline - message saved locally", undefined, 3000);
       }
     } catch (err) {
       console.error("send failed", err);
@@ -269,14 +337,14 @@ export default function ChatPanel({
               <path d="M21 15a2 2 0 01-2 2H7l-6 4V5a2 2 0 012-2h16a2 2 0 012 2z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <span className="text-sm font-medium text-text">Chat</span>
-            <span className="text-xs subtle">• {msgs.length}</span>
+            <span className="text-xs subtle">({msgs.length})</span>
           </button>
 
-          <div className="text-xs subtle hidden sm:inline">Live • {participants.length} here</div>
+          <div className="text-xs subtle hidden sm:inline">Live - {participants.length} here</div>
         </div>
 
         <div className="flex items-center gap-2">
-          {typingList.length ? <div className="text-xs subtle pr-2">{typingList.join(", ")} typing…</div> : null}
+          {typingList.length ? <div className="text-xs subtle pr-2">{typingList.join(", ")} typing...</div> : null}
           <button
             onClick={() => {
               // focus input
@@ -331,7 +399,7 @@ export default function ChatPanel({
               ));
             })()
           ) : (
-            <div className="text-center text-subtle text-sm py-6">No messages yet — be the first to say hi 👋</div>
+            <div className="text-center text-subtle text-sm py-6">No messages yet - be the first to say hi.</div>
           )}
         </div>
 
@@ -344,7 +412,7 @@ export default function ChatPanel({
               aria-label="Open emoji picker"
               title="Emoji"
             >
-              😀
+              Emoji
             </button>
 
             <div className="flex-1 relative">
@@ -354,7 +422,7 @@ export default function ChatPanel({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Say something… (Enter to send, Shift+Enter newline)"
+                placeholder="Say something... (Enter to send, Shift+Enter newline)"
                 className="w-full rounded-lg p-2 bg-bg/10 text-text outline-none border border-white/6"
               />
 
@@ -397,3 +465,4 @@ export default function ChatPanel({
     </div>
   );
 }
+

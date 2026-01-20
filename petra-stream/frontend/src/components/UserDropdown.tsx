@@ -88,7 +88,7 @@ export default function UserDropdown(): JSX.Element {
           </button>
 
           {open && (
-            <div className="fixed left-4 right-4 bottom-4 max-h-[60vh] overflow-y-auto rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50 sm:absolute sm:left-auto sm:right-0 sm:bottom-auto sm:mt-2 sm:w-44">
+            <div className="fixed left-4 right-4 bottom-4 translate-y-2 max-h-[60vh] overflow-y-auto rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:bottom-auto sm:mt-3 sm:translate-y-0 sm:w-44">
               <div className="p-2">
                 <div className="py-2">
                   <Link to={`/profile/${profileId}`} className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Profile</Link>

@@ -42,13 +42,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join')
-  handleJoin(@MessageBody() room: string, @ConnectedSocket() client: Socket) {
+  handleJoin(@MessageBody() payload: any, @ConnectedSocket() client: Socket) {
+    const room =
+      typeof payload === 'string'
+        ? payload
+        : payload?.room || (payload?.streamId ? `stream:${payload.streamId}` : '');
+    if (!room) return { ok: false };
     client.join(room);
 
     // track participants only for stream rooms ("stream:<id>")
-    if (room?.startsWith('stream:')) {
+    if (room.startsWith('stream:')) {
       const streamId = room.replace('stream:', '');
-      const user = client.handshake.query.user?.toString() || `anon-${client.id.slice(0, 4)}`;
+      const user =
+        payload?.user?.toString() ||
+        client.handshake.auth?.user?.toString() ||
+        client.handshake.query.user?.toString() ||
+        `anon-${client.id.slice(0, 4)}`;
       this.trackParticipant(client, streamId, user);
       this.streams.addViewer(streamId, user);
       // send recent chat history to this client
@@ -57,6 +66,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           client.emit('chat:history', { streamId, messages: history ?? [] });
         })
         .catch(() => {});
+    }
+    return { ok: true };
+  }
+
+  @SubscribeMessage('leave')
+  handleLeave(@MessageBody() payload: any, @ConnectedSocket() client: Socket) {
+    const room =
+      typeof payload === 'string'
+        ? payload
+        : payload?.room || (payload?.streamId ? `stream:${payload.streamId}` : '');
+    if (!room) return { ok: false };
+    client.leave(room);
+    if (room.startsWith('stream:')) {
+      const streamId = room.replace('stream:', '');
+      const meta = this.clientMeta.get(client.id);
+      if (meta) {
+        const set = this.participants.get(streamId);
+        if (set) {
+          set.delete(meta.user);
+          this.participants.set(streamId, set);
+        }
+        this.clientMeta.delete(client.id);
+        this.streams.removeViewer(streamId, meta.user);
+      }
+      this.broadcastParticipants(streamId);
     }
     return { ok: true };
   }

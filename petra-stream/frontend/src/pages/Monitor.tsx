@@ -5,12 +5,23 @@ import Player from "../components/Player";
 import ChatPanel from "../components/ChatPanel";
 import ViewerList from "../components/ViewerList";
 import { useToast } from "../contexts/ToastContext";
+import { readAuthUser } from "../lib/auth";
 
 export default function Monitor(): JSX.Element {
   const toast = useToast();
   const [stream, setStream] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [tips, setTips] = useState<any[]>([]);
+  const [authUser, setAuthUser] = useState(readAuthUser());
+
+  const currentUser =
+    authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "You";
+
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    return () => window.removeEventListener("auth-changed", refresh);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -117,7 +128,7 @@ export default function Monitor(): JSX.Element {
 
           <div className="glass-card p-4">
             <h3 className="text-sm font-semibold mb-3">Live chat</h3>
-            <ChatPanel streamId={String(streamId)} messages={[]} />
+            <ChatPanel streamId={String(streamId)} currentUser={currentUser} />
           </div>
         </section>
 
