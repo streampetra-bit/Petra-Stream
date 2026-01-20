@@ -68,27 +68,27 @@ export default function UserDropdown(): JSX.Element {
   const profileId = user?.username || user?.address || user?.id || "me";
 
   return (
-    <div className="relative inline-flex items-center">
+    <div className="relative inline-flex w-full sm:w-auto items-center">
       {user ? (
         <>
           <button
             onClick={() => setOpen((s) => !s)}
             aria-expanded={open}
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 bg-surface border"
+            className="inline-flex w-full sm:w-auto items-center justify-between gap-2 rounded-lg px-3 py-1.5 bg-surface border"
             style={{ borderColor: "rgba(255,255,255,0.06)" }}
           >
             <div className="w-8 h-8 rounded-full neon-ring flex items-center justify-center bg-gradient-to-br" style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))" }}>
               <span className="text-xs font-mono text-bg">{initials || "??"}</span>
             </div>
 
-            <div className="hidden sm:block text-left">
+            <div className="hidden sm:block text-left min-w-0">
               <div className="text-sm font-medium text-text truncate">{label}</div>
               <div className="text-xs subtle">{user?.username ? "Member" : "Account"}</div>
             </div>
           </button>
 
           {open && (
-            <div className="absolute right-0 mt-2 w-44 rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50">
+            <div className="fixed left-4 right-4 bottom-4 max-h-[60vh] overflow-y-auto rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50 sm:absolute sm:left-auto sm:right-0 sm:bottom-auto sm:mt-2 sm:w-44">
               <div className="p-2">
                 <div className="py-2">
                   <Link to={`/profile/${profileId}`} className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Profile</Link>
@@ -116,8 +116,8 @@ export default function UserDropdown(): JSX.Element {
             </button>
           </div>
 
-          <div className="inline-flex sm:hidden">
-            <button onClick={() => setAuthMode("login")} className="px-3 py-1.5 rounded-md border">
+          <div className="inline-flex sm:hidden w-full">
+            <button onClick={() => setAuthMode("login")} className="w-full px-3 py-1.5 rounded-md border">
               Account
             </button>
           </div>

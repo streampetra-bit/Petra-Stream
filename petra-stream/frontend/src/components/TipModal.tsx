@@ -104,11 +104,16 @@ export default function TipModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" aria-modal="true" role="dialog">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pb-8"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 2rem)" }}
+      aria-modal="true"
+      role="dialog"
+    >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         ref={dialogRef}
-        className="relative bg-surface/95 text-text rounded-xl w-full max-w-md p-6 glass-card"
+        className="relative bg-surface/95 text-text rounded-xl w-full max-w-md p-6 glass-card max-h-[calc(100vh-8rem)] overflow-y-auto"
         role="document"
         aria-labelledby="tip-modal-title"
       >

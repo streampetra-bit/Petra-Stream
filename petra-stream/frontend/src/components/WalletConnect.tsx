@@ -236,7 +236,7 @@ export default function WalletConnect(): JSX.Element {
     return (
       <button
         onClick={connect}
-        className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg"
+        className="btn-primary inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg"
         aria-label="Connect wallet"
       >
         {loading ? (
@@ -252,11 +252,11 @@ export default function WalletConnect(): JSX.Element {
 
   // Connected view
   return (
-    <div className="relative inline-flex items-center gap-3">
+    <div className="relative inline-flex w-full sm:w-auto items-center gap-3">
       <button
         onClick={() => setMenuOpen((s) => !s)}
         aria-expanded={menuOpen}
-        className="inline-flex items-center gap-3 rounded-lg px-3 py-1.5 bg-surface border"
+        className="inline-flex w-full sm:w-auto items-center justify-between gap-3 rounded-lg px-3 py-1.5 bg-surface border"
         aria-label="Account menu"
         style={{ borderColor: 'rgba(255,255,255,0.06)' }}
       >
@@ -267,8 +267,8 @@ export default function WalletConnect(): JSX.Element {
           <span className="text-xs font-mono text-bg">{shortAddr.slice(0, 2)}</span>
         </div>
 
-        <div className="text-left">
-          <div className="text-sm font-medium text-text">{shortAddr}</div>
+        <div className="text-left min-w-0">
+          <div className="text-sm font-medium text-text truncate">{shortAddr}</div>
           <div className="text-xs subtle">{balance ? `${balance} ${symbol}` : `-- ${symbol}`}</div>
         </div>
 
@@ -280,7 +280,7 @@ export default function WalletConnect(): JSX.Element {
       {/* dropdown menu */}
       {menuOpen && (
         <div
-          className="absolute right-0 mt-2 w-48 rounded-lg backdrop-blur-sm shadow-lg z-50"
+          className="fixed left-4 right-4 bottom-4 max-h-[60vh] overflow-y-auto rounded-lg backdrop-blur-sm shadow-lg z-50 sm:absolute sm:left-auto sm:right-0 sm:bottom-auto sm:mt-2 sm:w-48"
           style={{ background: 'rgb(var(--color-surface-rgb) / 0.95)', borderColor: 'rgba(255,255,255,0.06)', borderWidth: 1 }}
         >
           <div className="p-2">

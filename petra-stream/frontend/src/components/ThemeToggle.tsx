@@ -66,13 +66,13 @@ export default function ThemeToggle(): JSX.Element {
   }, []);
 
   return (
-    <div ref={ref} className="relative inline-flex items-center">
+    <div ref={ref} className="relative inline-flex w-full sm:w-auto items-center">
       <button
         type="button"
         onClick={() => setOpen((s) => !s)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-surface/70 px-3 py-1.5 text-xs font-semibold text-text hover:bg-white/5 transition"
+        className="inline-flex w-full sm:w-auto items-center justify-between gap-2 rounded-full border border-white/10 bg-surface/70 px-3 py-1.5 text-xs font-semibold text-text hover:bg-white/5 transition"
       >
         <span
           className="h-4 w-4 rounded-full border border-white/20"
@@ -87,7 +87,7 @@ export default function ThemeToggle(): JSX.Element {
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 top-full mt-3 w-56 rounded-2xl border border-white/10 bg-bg/95 backdrop-blur-xl shadow-lg z-50"
+          className="fixed left-4 right-4 bottom-4 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-bg/95 backdrop-blur-xl shadow-lg z-50 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:bottom-auto sm:mt-3 sm:w-56"
         >
           <div className="p-2">
             {orderedThemes.map((key) => {

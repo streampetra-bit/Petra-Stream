@@ -53,9 +53,15 @@ export default function EditProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pb-8"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 2rem)" }}
+    >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div ref={ref} className="relative bg-surface/95 text-text rounded-xl w-full max-w-lg p-6 glass-card">
+      <div
+        ref={ref}
+        className="relative bg-surface/95 text-text rounded-xl w-full max-w-lg p-6 glass-card max-h-[calc(100vh-8rem)] overflow-y-auto"
+      >
         <h3 className="text-lg font-semibold">Edit profile</h3>
         <p className="text-sm subtle mt-1">Update your display name and bio. Changes save to the server if available.</p>
 

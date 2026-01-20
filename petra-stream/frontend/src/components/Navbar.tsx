@@ -127,8 +127,8 @@ export default function Navbar(): JSX.Element {
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-white/10 bg-bg/95">
-          <div className="px-6 py-4 space-y-4">
+        <div className="md:hidden border-t border-white/10 bg-bg/95 max-h-[calc(100vh-4rem)] overflow-y-auto">
+          <div className="px-4 sm:px-6 py-4 space-y-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <form onSubmit={onSubmitSearch} className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">

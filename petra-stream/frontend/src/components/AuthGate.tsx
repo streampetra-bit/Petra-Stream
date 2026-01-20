@@ -86,9 +86,12 @@ export default function AuthGate(): JSX.Element | null {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-4 pb-8"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 2rem)" }}
+        >
           <div className="absolute inset-0 bg-black/60" />
-          <div className="relative z-50 w-full max-w-lg rounded-2xl bg-surface/95 text-text p-6 glass-card">
+          <div className="relative z-50 w-full max-w-lg rounded-2xl bg-surface/95 text-text p-6 glass-card max-h-[calc(100vh-8rem)] overflow-y-auto">
             <h2 className="text-2xl font-bold">Welcome to Petra Stream</h2>
             <p className="mt-2 text-sm subtle">
               Sign up or log in to personalize your feed. You can connect a wallet later for creator actions and tips.
