@@ -234,8 +234,8 @@ export default function StreamDetail(): JSX.Element {
 
   return (
     <>
-      <div className={`grid grid-cols-1 ${theaterMode - "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
-        <div className={theaterMode - "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
+      <div className={`grid grid-cols-1 ${theaterMode ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
+        <div className={theaterMode ? "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
           {usingMock && (
             <div className="glass-card p-3 text-sm text-yellow-300">
               Using mock stream data - backend returned no stream.
@@ -300,10 +300,10 @@ export default function StreamDetail(): JSX.Element {
 
               <button
                 onClick={() => setTheaterMode((s) => !s)}
-                className={`px-3 py-2 rounded-md border ${theaterMode - "bg-surface/80" : ""}`}
+                className={`px-3 py-2 rounded-md border ${theaterMode ? "bg-surface/80" : ""}`}
                 title="Theater mode (y)"
               >
-                {theaterMode - "Exit Theater" : "Theater"}
+                {theaterMode ? "Exit Theater" : "Theater"}
               </button>
             </div>
           </div>
@@ -317,7 +317,7 @@ export default function StreamDetail(): JSX.Element {
           <section>
             <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {related.length - (
+              {related.length ? (
                 related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
               ) : (
                 <div className="muted">No related streams found.</div>

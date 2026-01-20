@@ -88,7 +88,7 @@ export default function UserDropdown(): JSX.Element {
           </button>
 
           {open && (
-            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+5rem)] max-h-[calc(100vh-8rem)] overflow-y-auto rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50 sm:fixed sm:left-auto sm:right-6 sm:top-[calc(env(safe-area-inset-top)+5rem)] sm:max-h-[calc(100vh-6rem)] sm:w-48">
+            <div className="fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+7rem)] max-h-[calc(100vh-10rem)] overflow-y-auto rounded-lg bg-surface/95 backdrop-blur-sm border border-white/6 shadow-lg z-50 sm:fixed sm:left-auto sm:right-6 sm:top-[calc(env(safe-area-inset-top)+7rem)] sm:max-h-[calc(100vh-8rem)] sm:w-48">
               <div className="p-2">
                 <div className="py-2">
                   <Link to={`/profile/${profileId}`} className="block px-3 py-2 rounded-md hover:bg-surface/80 text-text">Profile</Link>
