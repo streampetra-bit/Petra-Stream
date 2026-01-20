@@ -57,25 +57,28 @@ export default function ProfilePage(): JSX.Element {
       authUser.address === profile?.username);
 
   useEffect(() => {
-    if (!resolvedId) return;
+    if (!resolvedId) {
+      setLoading(false);
+      return;
+    }
+
+    const fallbackProfile = {
+      username: resolvedId,
+      displayName: authUser?.displayName || authUser?.username || resolvedId,
+      bio: "This user hasn't added a bio yet.",
+      avatar: undefined,
+      followers: Math.floor(Math.random() * 1200),
+      following: Math.floor(Math.random() * 300),
+      isLive: false,
+      address: resolvedId,
+    };
+
     setLoading(true);
     (async () => {
       try {
         const res = await api.get(`/api/users/${resolvedId}`).catch(() => null);
         if (res && res.data) setProfile(res.data);
-        else {
-          // fallback placeholder
-          setProfile({
-            username: resolvedId,
-            displayName: authUser?.displayName || authUser?.username || resolvedId,
-            bio: "This user hasn't added a bio yet.",
-            avatar: undefined,
-            followers: Math.floor(Math.random() * 1200),
-            following: Math.floor(Math.random() * 300),
-            isLive: false,
-            address: resolvedId,
-          });
-        }
+        else setProfile(fallbackProfile);
 
         const sres = await api.get(`/api/users/${resolvedId}/streams`).catch(() => null);
         if (sres && sres.data) setStreams(sres.data);
@@ -83,6 +86,8 @@ export default function ProfilePage(): JSX.Element {
       } catch (err) {
         console.error(err);
         toast.error("Failed to load profile", undefined, 3000);
+        setProfile(fallbackProfile);
+        setStreams([]);
       } finally {
         setLoading(false);
       }
