@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { StreamsService } from '../streams/streams.service';
 import { mongoListChatMessages, mongoSaveChatMessage } from '../db/mongo';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type Participant = { user: string; streamId: string };
 
@@ -21,7 +22,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private participants = new Map<string, Set<string>>(); // streamId => users
   private clientMeta = new Map<string, Participant>(); // socketId => meta
 
-  constructor(private readonly streams: StreamsService) {}
+  constructor(
+    private readonly streams: StreamsService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   handleConnection() {
     // no-op
@@ -113,8 +117,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       streamId,
       user,
       text: payload?.text || '',
-      ts: payload?.ts || Date.now()
+      ts: payload?.ts || Date.now(),
+      replyToUser: payload?.replyToUser,
+      replyToText: payload?.replyToText
     }).catch(() => {});
+
+    const text = String(payload?.text || '');
+    if (text) {
+      const mentions = Array.from(text.matchAll(/@([a-zA-Z0-9_.-]+)/g)).map((m) => m[1]);
+      const unique = Array.from(new Set(mentions)).filter((name) => name && name !== user);
+      unique.forEach((target) => {
+        void this.notifications.notifyMention(target, user, text, streamId);
+      });
+    }
+
+    const replyTarget = payload?.replyToUser || payload?.replyTo;
+    if (replyTarget && replyTarget !== user) {
+      void this.notifications.notifyReply(String(replyTarget), user, String(payload?.text || ''), streamId);
+    }
   }
 
   @SubscribeMessage('chat:typing')

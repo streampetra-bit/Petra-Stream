@@ -54,6 +54,7 @@ export default function ProfilePage(): JSX.Element {
   const [loadingStreams, setLoadingStreams] = useState(false);
   const [editing, setEditing] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
     const refresh = () => setAuthUser(readAuthUser());
@@ -112,20 +113,52 @@ export default function ProfilePage(): JSX.Element {
         setLoadingStreams(false);
       }
     })();
-  }, [resolvedId, authUser, toast]);
+
+    (async () => {
+      if (!authUser || isOwner) {
+        setFollowing(false);
+        return;
+      }
+      setFollowLoading(true);
+      try {
+        const fres = await api.get(`/api/users/${encodeURIComponent(resolvedId)}/following`).catch(() => null);
+        setFollowing(Boolean(fres?.data?.following));
+      } catch (err) {
+        setFollowing(false);
+      } finally {
+        setFollowLoading(false);
+      }
+    })();
+  }, [resolvedId, authUser, isOwner, toast]);
 
   const toggleFollow = async () => {
-    setFollowing((s) => !s);
+    if (!authUser) {
+      toast.info("Sign in required", "Please sign in to follow creators.", 2500);
+      return;
+    }
+    if (followLoading) return;
+    setFollowLoading(true);
+    const next = !following;
+    setFollowing(next);
+    setProfile((p) => ({
+      ...p,
+      followers: Math.max(0, (p.followers ?? 0) + (next ? 1 : -1)),
+    }));
     try {
-      const follower = authUser?.username || authUser?.address || authUser?.id;
       await api
-        .post(`/api/users/${encodeURIComponent(resolvedId)}/follow`, follower ? { follower } : {})
+        .post(`/api/users/${encodeURIComponent(resolvedId)}/follow`, { action: next ? "follow" : "unfollow" })
         .catch(() => null);
-      toast.success(following ? "Unfollowed" : "Followed", undefined, 2000);
+      toast.success(next ? "Followed" : "Unfollowed", undefined, 2000);
     } catch (err) {
       console.error("Follow failed", err);
       toast.error("Action failed", undefined, 2500);
       setFollowing((s) => !s);
+      setProfile((p) => ({
+        ...p,
+        followers: Math.max(0, (p.followers ?? 0) + (next ? -1 : 1)),
+      }));
+    } finally {
+      setFollowLoading(false);
     }
   };
 
@@ -177,8 +210,13 @@ export default function ProfilePage(): JSX.Element {
                   Edit profile
                 </button>
               ) : (
-                <button onClick={toggleFollow} className="px-4 py-2 rounded-md border" aria-pressed={following}>
-                  {following ? "Following" : "Follow"}
+                <button
+                  onClick={toggleFollow}
+                  className="px-4 py-2 rounded-md border"
+                  aria-pressed={following}
+                  disabled={followLoading}
+                >
+                  {followLoading ? "Loading..." : following ? "Following" : "Follow"}
                 </button>
               )}
 

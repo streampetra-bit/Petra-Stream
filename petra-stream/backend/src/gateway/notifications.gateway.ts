@@ -18,4 +18,16 @@ export class NotificationsGateway {
       // console.warn('notifyTip failure', err);
     }
   }
+
+  notifyUser(user: string, payload: any) {
+    try {
+      this.server.to(`user:${user}`).emit('notification', payload);
+    } catch (err) {
+      // swallow
+    }
+  }
+
+  notifyUsers(users: string[], payload: any) {
+    users.forEach((user) => this.notifyUser(user, payload));
+  }
 }

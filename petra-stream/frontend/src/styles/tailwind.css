@@ -294,4 +294,14 @@
   .categories-page h4 {
     font-family: "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+
+  .watch-page {
+    font-family: "Space Grotesk", "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .watch-page h1,
+  .watch-page h2,
+  .watch-page h3,
+  .watch-page h4 {
+    font-family: "Space Grotesk", "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
 }

@@ -17,6 +17,7 @@ export default function TipModal({
   onClose: () => void;
   onTipped: () => void;
 }) {
+  const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || "SOM");
   const [amount, setAmount] = useState('0.01');
   const [loading, setLoading] = useState(false);
   const [memo, setMemo] = useState('');
@@ -120,16 +121,16 @@ export default function TipModal({
         <h3 id="tip-modal-title" className="text-lg font-semibold text-primary">
           Send a tip
         </h3>
-        <p className="text-sm subtle mt-1">Support the streamer with a native token gift.</p>
+        <p className="text-sm subtle mt-1">Support the streamer with a native {symbol} gift.</p>
 
         <div className="mt-4 grid gap-2">
-          <label className="text-xs subtle">Amount (ETH)</label>
+          <label className="text-xs subtle">Amount ({symbol})</label>
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="w-full p-3 border rounded bg-bg/30 text-text"
             inputMode="decimal"
-            aria-label="Amount in ETH"
+            aria-label={`Amount in ${symbol}`}
           />
 
           <label className="text-xs subtle mt-2">Memo (optional)</label>

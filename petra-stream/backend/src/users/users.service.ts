@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { StreamsService } from '../streams/streams.service';
 import prisma from '../prisma/client';
 import { mongoFindUser, mongoToggleFollow, mongoUpsertUser } from '../db/mongo';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export type UserProfile = {
   username: string;
@@ -18,9 +19,13 @@ export type UserProfile = {
 @Injectable()
 export class UsersService {
   private users = new Map<string, UserProfile>();
+  private followIndex = new Map<string, boolean>();
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly streamsService: StreamsService) {}
+  constructor(
+    private readonly streamsService: StreamsService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   async getUser(username: string): Promise<UserProfile | null> {
     const cached = this.users.get(username);
@@ -76,6 +81,9 @@ export class UsersService {
   }
 
   async follow(username: string, target: string) {
+    if (await this.isFollowing(username, target)) {
+      return { ok: true, following: true };
+    }
     // optimistic local update
     const me = (await this.getUser(username)) ?? { username, followers: 0, following: 0 };
     const tgt = (await this.getUser(target)) ?? { username: target, followers: 0, following: 0 };
@@ -83,12 +91,53 @@ export class UsersService {
     tgt.followers = (tgt.followers ?? 0) + 1;
     this.users.set(username, me);
     this.users.set(target, tgt);
+    this.followIndex.set(`${username}:${target}`, true);
+    this.notifications.recordFollow(target, username, true);
     try {
       await mongoToggleFollow(username, target, true);
     } catch (err) {
       this.logger.warn('follow mongo failed', err as any);
     }
-    return { ok: true };
+    await this.notifications.notifyFollow(target, username);
+    return { ok: true, following: true };
+  }
+
+  async unfollow(username: string, target: string) {
+    if (!(await this.isFollowing(username, target))) {
+      return { ok: true, following: false };
+    }
+    const me = (await this.getUser(username)) ?? { username, followers: 0, following: 0 };
+    const tgt = (await this.getUser(target)) ?? { username: target, followers: 0, following: 0 };
+    me.following = Math.max(0, (me.following ?? 0) - 1);
+    tgt.followers = Math.max(0, (tgt.followers ?? 0) - 1);
+    this.users.set(username, me);
+    this.users.set(target, tgt);
+    this.followIndex.set(`${username}:${target}`, false);
+    this.notifications.recordFollow(target, username, false);
+    try {
+      await mongoToggleFollow(username, target, false);
+    } catch (err) {
+      this.logger.warn('unfollow mongo failed', err as any);
+    }
+    return { ok: true, following: false };
+  }
+
+  async isFollowing(username: string, target: string): Promise<boolean> {
+    const key = `${username}:${target}`;
+    if (this.followIndex.has(key)) {
+      return Boolean(this.followIndex.get(key));
+    }
+    try {
+      const mongoUser = await mongoFindUser(username);
+      if (mongoUser && Array.isArray(mongoUser.following)) {
+        const follows = mongoUser.following.includes(target);
+        this.followIndex.set(key, follows);
+        return follows;
+      }
+    } catch (err) {
+      this.logger.warn('isFollowing mongo failed', err as any);
+    }
+    return false;
   }
 
   async listStreams(username: string) {

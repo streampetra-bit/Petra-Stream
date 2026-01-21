@@ -2,10 +2,14 @@ import { Body, Controller, ForbiddenException, Get, Headers, Param, Post, Query,
 import { StreamsService } from './streams.service';
 import { Interface, encodeBytes32String } from 'ethers';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Controller('api/streams')
 export class StreamsController {
-  constructor(private readonly streams: StreamsService) {}
+  constructor(
+    private readonly streams: StreamsService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   @Get('active')
   findActive() {
@@ -70,6 +74,7 @@ export class StreamsController {
     if (!updated) {
       throw new UnauthorizedException('Unknown stream key');
     }
+    await this.notifications.notifyStreamStatus(updated.streamer, 'online', updated.title);
     return { ok: true, streamKey, status: 'online' };
   }
 
@@ -88,6 +93,7 @@ export class StreamsController {
     if (!updated) {
       throw new UnauthorizedException('Unknown stream key');
     }
+    await this.notifications.notifyStreamStatus(updated.streamer, 'offline', updated.title);
     return { ok: true, streamKey, status: 'offline' };
   }
 
@@ -109,14 +115,20 @@ export class StreamsController {
   @Post('start')
   start(@Req() req: any, @Body() body: any) {
     const identity = this.resolveIdentity(req, body?.streamer);
-    return this.streams.startStream({ ...body, streamer: identity });
+    return this.streams.startStream({ ...body, streamer: identity }).then(async (meta) => {
+      await this.notifications.notifyStreamStatus(identity, 'online', meta?.title);
+      return meta;
+    });
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('stop')
   stop(@Req() req: any, @Body('streamer') streamer?: string) {
     const identity = this.resolveIdentity(req, streamer);
-    return this.streams.stopStream(identity).then(r => ({ ok: true, stream: r }));
+    return this.streams.stopStream(identity).then(async (r) => {
+      await this.notifications.notifyStreamStatus(identity, 'offline', r?.title);
+      return { ok: true, stream: r };
+    });
   }
 
   @Get(':id/tips')
@@ -147,8 +159,16 @@ export class StreamsController {
     if (identity && identity.toLowerCase() !== id.toLowerCase()) {
       throw new ForbiddenException('Not allowed');
     }
-    if (live) return this.streams.startStream({ streamer: id });
-    return this.streams.stopStream(id);
+    if (live) {
+      return this.streams.startStream({ streamer: id }).then(async (meta) => {
+        await this.notifications.notifyStreamStatus(id, 'online', meta?.title);
+        return meta;
+      });
+    }
+    return this.streams.stopStream(id).then(async (meta) => {
+      await this.notifications.notifyStreamStatus(id, 'offline', meta?.title);
+      return meta;
+    });
   }
 
   @UseGuards(JwtAuthGuard)

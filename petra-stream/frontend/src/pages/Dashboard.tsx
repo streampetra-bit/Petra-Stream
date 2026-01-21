@@ -1,12 +1,32 @@
 // src/pages/Dashboard.tsx
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import api from "../lib/api";
+import { readAuthUser } from "../lib/auth";
 
 type NavItem = {
   label: string;
   href: string;
   active?: boolean;
   icon: React.ReactNode;
+};
+
+type StatItem = {
+  label: string;
+  value: string;
+  delta?: string;
+  showDelta?: boolean;
+  accent: string;
+  glow: string;
+  icon: React.ReactNode;
+  valueSuffix?: string;
+};
+
+type DashboardProfile = {
+  name: string;
+  role: string;
+  avatar: string;
+  followers: number;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -60,13 +80,14 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const STATS = [
+const BASE_STATS: StatItem[] = [
   {
     label: "Total earnings (SOL)",
     value: "452.85",
     delta: "+15.2%",
     accent: "text-primary",
     glow: "bg-primary/10",
+    valueSuffix: "SOL",
     icon: (
       <svg className="h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-2.5 0-4 1-4 2.5S9.5 13 12 13s4 1 4 2.5S14.5 18 12 18m0-10V6m0 12v-2" />
@@ -82,18 +103,6 @@ const STATS = [
     icon: (
       <svg className="h-6 w-6 text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 2c1.66 0 3-1.34 3-3S9.66 7 8 7s-3 1.34-3 3 1.34 3 3 3zm8 2h3a3 3 0 013 3v1H13v-1a3 3 0 013-3zm-8 1h4a3 3 0 013 3v1H5v-1a3 3 0 013-3z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Active subscribers",
-    value: "1,240",
-    delta: "+8.4%",
-    accent: "text-blue-400",
-    glow: "bg-blue-500/10",
-    icon: (
-      <svg className="h-6 w-6 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4l8 4-8 4-8-4 8-4zm0 8l8 4-8 4-8-4 8-4z" />
       </svg>
     ),
   },
@@ -168,14 +177,84 @@ const ACTIVITY = [
   },
 ];
 
-const PROFILE = {
+const DEFAULT_PROFILE: DashboardProfile = {
   name: "Ariana Wells",
   role: "Lead Creator",
   avatar:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuCBIy49bC6J1_AOuZzPm2dHZwjNxT4pYjdQ7n5K1UwPm3jJuDpQhJqYU6aKGmE1n7E-5avZiIFqYGOVTeVtjynD_0PeL5H34gcw5yY2L6TLzJFGAwjQcBic1scWk0JF9cpw7D4tV2bCfArwA_cFM5_wCSb687yyDWhP3DL9B2oExY1u5RGKV2eFxE1cbThXr8jvOodzerHsBKk87lF7OoLQn-kcrT6Ho6pXbopWlp2Uo82onEPLqLqD8KWSNtRNdQL0Dlocp05QgA8",
+  followers: 0,
+};
+
+const FOLLOWER_STAT: Omit<StatItem, "value"> = {
+  label: "Followers",
+  accent: "text-blue-400",
+  glow: "bg-blue-500/10",
+  showDelta: false,
+  icon: (
+    <svg className="h-6 w-6 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 2c1.66 0 3-1.34 3-3S9.66 7 8 7s-3 1.34-3 3 1.34 3 3 3zm8 2h3a3 3 0 013 3v1H13v-1a3 3 0 013-3zm-8 1h4a3 3 0 013 3v1H5v-1a3 3 0 013-3z" />
+    </svg>
+  ),
+};
+
+const formatCount = (value: number) => {
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return value.toString();
 };
 
 export default function Dashboard(): JSX.Element {
+  const initialAuthUser = readAuthUser();
+  const [authUser, setAuthUser] = useState(initialAuthUser);
+  const [profile, setProfile] = useState<DashboardProfile>(() => ({
+    ...DEFAULT_PROFILE,
+    name: initialAuthUser?.displayName || initialAuthUser?.username || DEFAULT_PROFILE.name,
+  }));
+
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    return () => window.removeEventListener("auth-changed", refresh);
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    const target = authUser.username || authUser.address || authUser.id;
+    if (!target) return;
+    let active = true;
+    api
+      .get(`/api/users/${encodeURIComponent(target)}`)
+      .then((res) => {
+        if (!active) return;
+        const user = res?.data ?? {};
+        setProfile((prev) => ({
+          ...prev,
+          name: user.displayName || user.username || user.address || prev.name,
+          avatar: user.avatar || prev.avatar,
+          followers: typeof user.followers === "number" ? user.followers : prev.followers,
+        }));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [authUser]);
+
+  const stats = useMemo<StatItem[]>(
+    () => [
+      ...BASE_STATS,
+      {
+        ...FOLLOWER_STAT,
+        value: formatCount(profile.followers),
+      },
+    ],
+    [profile.followers]
+  );
+
   return (
     <div className="min-h-screen bg-bg text-text">
       <div className="flex min-h-screen">
@@ -293,11 +372,11 @@ export default function Dashboard(): JSX.Element {
               <Link to="/profile/me" className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2">
                 <div
                   className="h-10 w-10 rounded-full border-2 border-primary/40 bg-center bg-cover"
-                  style={{ backgroundImage: `url(${PROFILE.avatar})` }}
+                  style={{ backgroundImage: `url(${profile.avatar})` }}
                 />
                 <div className="hidden sm:flex flex-col leading-tight">
-                  <span className="text-sm font-semibold text-text">{PROFILE.name}</span>
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-subtle">{PROFILE.role}</span>
+                  <span className="text-sm font-semibold text-text">{profile.name}</span>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-subtle">{profile.role}</span>
                 </div>
               </Link>
             </div>
@@ -320,7 +399,7 @@ export default function Dashboard(): JSX.Element {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {STATS.map((stat, index) => (
+              {stats.map((stat) => (
                 <div key={stat.label} className="glass-card rounded-xl p-6 relative overflow-hidden">
                   <div className={`absolute -right-6 -top-6 h-32 w-32 rounded-full blur-3xl ${stat.glow}`} />
                   <div className="flex flex-col gap-4 relative">
@@ -330,14 +409,17 @@ export default function Dashboard(): JSX.Element {
                     </div>
                     <div>
                       <h3 className="text-3xl font-extrabold tracking-tight">
-                        {stat.value} {index === 0 && <span className={`text-lg font-semibold ${stat.accent}`}>SOL</span>}
+                        {stat.value}{" "}
+                        {stat.valueSuffix && <span className={`text-lg font-semibold ${stat.accent}`}>{stat.valueSuffix}</span>}
                       </h3>
-                      <p className="text-emerald-400 text-sm font-bold flex items-center gap-1 mt-1">
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12l5-5 5 5 5-5" />
-                        </svg>
-                        {stat.delta}
-                      </p>
+                      {stat.showDelta !== false && stat.delta && (
+                        <p className="text-emerald-400 text-sm font-bold flex items-center gap-1 mt-1">
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12l5-5 5 5 5-5" />
+                          </svg>
+                          {stat.delta}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

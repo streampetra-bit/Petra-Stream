@@ -1,20 +1,20 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { StreamsService } from '../streams/streams.service';
-
-type NotificationItem = {
-  id: string;
-  title: string;
-  description?: string;
-  kind: 'tip' | 'system' | 'stream';
-  ts: number;
-};
+import { NotificationItem, NotificationsService } from './notifications.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('api/notifications')
 export class NotificationsController {
-  constructor(private readonly streams: StreamsService) {}
+  constructor(
+    private readonly streams: StreamsService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   @Get()
-  async list(@Query('streamer') streamer?: string, @Query('limit') limit = 20) {
+  async list(
+    @Query('streamer') streamer?: string,
+    @Query('limit') limit = 20
+  ) {
     const streamId = streamer || process.env.DEFAULT_STREAMER || '';
     const max = Number(limit) || 20;
     const now = Date.now();
@@ -55,5 +55,36 @@ export class NotificationsController {
     }
 
     return { data: items.sort((a, b) => b.ts - a.ts).slice(0, max) };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async listForMe(@Req() req: any, @Query('limit') limit = 20) {
+    const identity = this.resolveIdentity(req);
+    const max = Number(limit) || 20;
+    const base: NotificationItem[] = [
+      {
+        id: `n-welcome-${identity}`,
+        title: 'Welcome to Petra Stream',
+        description: 'Connect a wallet to tip creators and go live.',
+        kind: 'system',
+        ts: Date.now()
+      }
+    ];
+    const userItems = await this.notifications.listForUser(identity, max);
+    const merged = [...base, ...userItems].sort((a, b) => b.ts - a.ts).slice(0, max);
+    return { data: merged };
+  }
+
+  private resolveIdentity(req: any): string {
+    const user = req?.user;
+    return (
+      user?.address ||
+      user?.username ||
+      user?.userId ||
+      user?.id ||
+      process.env.DEFAULT_STREAMER ||
+      'demo-user'
+    );
   }
 }

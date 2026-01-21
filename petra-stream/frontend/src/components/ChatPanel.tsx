@@ -16,6 +16,8 @@ export type ChatMsg = {
   ts: number;
   system?: boolean;
   deleted?: boolean;
+  replyToUser?: string;
+  replyToText?: string;
 };
 
 export interface ChatPanelProps {
@@ -49,6 +51,11 @@ export default function ChatPanel({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [replyTo, setReplyTo] = useState<{
+    user: string;
+    text: string;
+    id?: string;
+  } | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const toast = useToast();
@@ -127,6 +134,8 @@ export default function ChatPanel({
         text: payload.text ?? "",
         ts: payload.ts ?? Date.now(),
         system: !!payload.system,
+        replyToUser: payload.replyToUser,
+        replyToText: payload.replyToText,
       };
       setMsgs((s) => {
         if (incoming.id && s.some((m) => m.id === incoming.id)) return s;
@@ -178,6 +187,8 @@ export default function ChatPanel({
         ts: m.ts ?? Date.now(),
         system: !!m.system,
         deleted: !!m.deleted,
+        replyToUser: m.replyToUser,
+        replyToText: m.replyToText,
       }));
       if (!sanitized.length) return;
       setMsgs(sanitized);
@@ -245,14 +256,30 @@ export default function ChatPanel({
     const text = value.trim();
     if (!text) return;
     const id = genId();
-    const newMsg: ChatMsg = { id, user: currentUser, text, ts: Date.now() };
+    const newMsg: ChatMsg = {
+      id,
+      user: currentUser,
+      text,
+      ts: Date.now(),
+      replyToUser: replyTo?.user,
+      replyToText: replyTo?.text,
+    };
     setMsgs((s) => [...s, newMsg]); // optimistic
     setValue("");
     setShowEmoji(false);
+    setReplyTo(null);
     // emit
     try {
       if (socket && socket.connected) {
-        socket.emit("chat:message", { streamId, id, user: currentUser, text, ts: newMsg.ts });
+        socket.emit("chat:message", {
+          streamId,
+          id,
+          user: currentUser,
+          text,
+          ts: newMsg.ts,
+          replyToUser: replyTo?.user,
+          replyToText: replyTo?.text,
+        });
       } else {
         toast.info("You are offline - message saved locally", undefined, 3000);
       }
@@ -391,6 +418,10 @@ export default function ChatPanel({
                           onDelete={() => moderate("delete", m.id)}
                           onTimeout={() => moderate("timeout", m.id)}
                           isModerator={isModerator}
+                          onReply={() => {
+                            setReplyTo({ user: m.user, text: m.text, id: m.id });
+                            inputRef.current?.focus();
+                          }}
                         />
                       </div>
                     ))}
@@ -405,6 +436,21 @@ export default function ChatPanel({
 
         {/* input area */}
         <div className="p-3 border-t border-white/6 bg-surface sticky bottom-0">
+          {replyTo ? (
+            <div className="mb-2 flex items-center justify-between rounded-md border border-white/10 bg-bg/20 px-3 py-2 text-xs">
+              <div className="text-text">
+                Replying to <span className="font-semibold">@{replyTo.user}</span>:{" "}
+                <span className="subtle">{replyTo.text.slice(0, 80)}</span>
+              </div>
+              <button
+                className="text-subtle hover:text-text"
+                onClick={() => setReplyTo(null)}
+                aria-label="Cancel reply"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <button
               className="rounded-md p-2"

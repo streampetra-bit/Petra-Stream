@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { BlockIndexerService } from './block-indexer.service';
 import { StreamsModule } from '../streams/streams.module';
-import { NotificationsGateway } from '../gateway/notifications.gateway';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [StreamsModule],
-  providers: [BlockIndexerService, NotificationsGateway],
+  imports: [StreamsModule, NotificationsModule],
+  providers: [BlockIndexerService],
   exports: [BlockIndexerService]
 })
 export class IndexerModule {}

@@ -9,6 +9,7 @@ import Player, { PlayerHandle } from "../components/Player";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
+import socket from "../lib/socket";
 
 type Stream = {
   id?: string;
@@ -21,6 +22,14 @@ type Stream = {
   thumbnail?: string;
   tags?: string[];
   isLive?: boolean;
+};
+
+type ActivityItem = {
+  id: string;
+  title: string;
+  description?: string;
+  kind: "tip" | "system" | "stream";
+  ts: number;
 };
 
 /**
@@ -74,6 +83,10 @@ export default function StreamDetail(): JSX.Element {
   const [related, setRelated] = useState<Stream[]>([]);
   const [theaterMode, setTheaterMode] = useState(false);
   const [usingMock, setUsingMock] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [authUser, setAuthUser] = useState(readAuthUser());
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
@@ -172,6 +185,111 @@ export default function StreamDetail(): JSX.Element {
     };
   }, [streamId]);
 
+  const activityStreamId = stream?.streamer || stream?.id || streamId;
+
+  useEffect(() => {
+    if (!activityStreamId) return;
+    let active = true;
+    setActivityLoading(true);
+    setActivity([]);
+    api
+      .get(`/api/notifications?streamer=${encodeURIComponent(activityStreamId)}&limit=8`)
+      .then((res) => {
+        if (!active) return;
+        const raw = res?.data?.data;
+        if (!Array.isArray(raw)) {
+          setActivity([]);
+          return;
+        }
+        const normalized = raw.map((item: any) => ({
+          id: String(item?.id ?? `${activityStreamId}-${item?.ts ?? Date.now()}`),
+          title: String(item?.title ?? "Activity"),
+          description: item?.description ? String(item.description) : undefined,
+          kind: (item?.kind as ActivityItem["kind"]) || "system",
+          ts: Number(item?.ts ?? Date.now()),
+        }));
+        setActivity(normalized);
+      })
+      .catch(() => {
+        if (active) setActivity([]);
+      })
+      .finally(() => {
+        if (active) setActivityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activityStreamId]);
+
+  useEffect(() => {
+    if (!activityStreamId) return;
+    const room = `stream:${activityStreamId}`;
+
+    try {
+      if (socket && typeof socket.connect === "function" && !socket.connected) {
+        socket.auth = { user: currentUser };
+        socket.connect();
+      }
+      socket.emit?.("join", { room, user: currentUser });
+    } catch (err) {
+      console.warn("Activity socket join failed", err);
+    }
+
+    const onTip = (payload: any) => {
+      if (!payload) return;
+      const amount = payload.amount ?? payload.netAmount ?? "0";
+      const kind = payload.kind === "nft" ? "stream" : "tip";
+      const title = kind === "tip" ? "Tip received" : "NFT gift received";
+      const description =
+        kind === "tip"
+          ? `${payload.from ?? "Viewer"} tipped ${amount}`
+          : `${payload.from ?? "Viewer"} sent an NFT gift`;
+      const id = payload.txHash ? `tip-${payload.txHash}` : `tip-${Date.now()}`;
+      const nextItem: ActivityItem = {
+        id,
+        title,
+        description,
+        kind,
+        ts: Date.now(),
+      };
+      setActivity((prev) => {
+        if (prev.some((item) => item.id === nextItem.id)) return prev;
+        return [nextItem, ...prev].slice(0, 12);
+      });
+    };
+
+    const onChat = (payload: any) => {
+      if (!payload || payload.streamId !== activityStreamId) return;
+      if (payload.system) return;
+      const user = payload.user ?? "Viewer";
+      const text = payload.text ?? "";
+      if (!text) return;
+      const id = payload.id ? `chat-${payload.id}` : `chat-${Date.now()}`;
+      const nextItem: ActivityItem = {
+        id,
+        title: `${user} says`,
+        description: String(text),
+        kind: "stream",
+        ts: Number(payload.ts ?? Date.now()),
+      };
+      setActivity((prev) => {
+        if (prev.some((item) => item.id === nextItem.id)) return prev;
+        return [nextItem, ...prev].slice(0, 12);
+      });
+    };
+
+    socket.on("tip", onTip);
+    socket.on("chat:message", onChat);
+
+    return () => {
+      socket.off("tip", onTip);
+      socket.off("chat:message", onChat);
+      try {
+        socket.emit?.("leave", { room });
+      } catch {}
+    };
+  }, [activityStreamId, currentUser]);
+
   // keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -222,6 +340,56 @@ export default function StreamDetail(): JSX.Element {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatInputId, toast]);
 
+  const streamerAddress = stream?.streamer || stream?.id || streamId || "unknown";
+  const streamerLabel = stream?.streamer || stream?.id || streamId || "creator";
+  const streamerInitials = streamerLabel.slice(0, 2).toUpperCase() || "PS";
+  const isLive = stream?.isLive ?? true;
+  const viewerCount = stream?.viewerCount ?? 0;
+  const tags = Array.isArray(stream?.tags) ? stream.tags : [];
+  const followTarget = streamerLabel;
+  const isOwner =
+    !!authUser &&
+    (authUser.username === followTarget ||
+      authUser.address === followTarget ||
+      authUser.id === followTarget);
+  const fallbackPoster =
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuDiux0GO7MxQbxJ21SEoyp6z6VvJSxmNY60g-YK-BoJ4mYzHyuAfpDT3LhX_smt_Rddp6Uf2pDoYSi16COw16t1dXUOozZHnUVutpgChyuMpOiXj-GIAMPJMEkMldSxVCBe30rxMSsKHK2kSf3LHiRvy7Oa5IwkKCAHcJRi2TDE8r3bY8HYYficQy6qp4R9Ah6iDjVFewo0xxeBiJ7cVvCIwmYlFIjyDoKY0mrPf3Vp3xUZy4QUd5Ym0JYC_ue9Q1JvmLejy7lM2KU";
+  const playbackSrc = isLive ? stream?.playbackUrl ?? stream?.videoUrl ?? undefined : undefined;
+  const posterSrc = stream?.thumbnail ?? fallbackPoster;
+
+  const focusChat = () => {
+    const el = document.getElementById(chatInputId) as HTMLInputElement | null;
+    el?.focus();
+  };
+
+  const mintClip = () => {
+    toast.info("Minting coming soon", "Clip minting is not enabled yet.", 2500);
+  };
+
+  useEffect(() => {
+    if (!stream || !authUser || !followTarget || isOwner) {
+      setFollowing(false);
+      return;
+    }
+    let active = true;
+    setFollowLoading(true);
+    api
+      .get(`/api/users/${encodeURIComponent(followTarget)}/following`)
+      .then((res) => {
+        if (!active) return;
+        setFollowing(Boolean(res?.data?.following));
+      })
+      .catch(() => {
+        if (active) setFollowing(false);
+      })
+      .finally(() => {
+        if (active) setFollowLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authUser, followTarget, isOwner, stream]);
+
   if (!stream) {
     return (
       <div>
@@ -230,128 +398,361 @@ export default function StreamDetail(): JSX.Element {
     );
   }
 
-  const streamerAddress = stream.streamer || stream.id || streamId || "unknown";
+  const toggleFollow = async () => {
+    if (!authUser) {
+      toast.info("Sign in required", "Please sign in to follow creators.", 2500);
+      return;
+    }
+    if (isOwner || followLoading) return;
+    const next = !following;
+    setFollowing(next);
+    setFollowLoading(true);
+    try {
+      await api.post(`/api/users/${encodeURIComponent(followTarget)}/follow`, {
+        action: next ? "follow" : "unfollow",
+      });
+      toast.success(next ? "Followed" : "Unfollowed", undefined, 2000);
+    } catch (err) {
+      setFollowing(!next);
+      toast.error("Action failed", undefined, 2500);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const formatTime = (ts: number) => {
+    if (!ts) return "Now";
+    try {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "Now";
+    }
+  };
+
+  const activityMeta = (kind: ActivityItem["kind"]) => {
+    switch (kind) {
+      case "tip":
+        return {
+          label: "Tip",
+          card: "border-primary/20 bg-primary/10",
+          badge: "text-primary bg-primary/15 border-primary/30",
+        };
+      case "stream":
+        return {
+          label: "Stream",
+          card: "border-emerald-400/20 bg-emerald-500/10",
+          badge: "text-emerald-300 bg-emerald-500/15 border-emerald-400/30",
+        };
+      default:
+        return {
+          label: "System",
+          card: "border-white/10 bg-bg/70",
+          badge: "text-subtle bg-white/5 border-white/10",
+        };
+    }
+  };
 
   return (
     <>
-      <div className={`grid grid-cols-1 ${theaterMode ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
-        <div className={theaterMode ? "lg:col-span-1" : "lg:col-span-2 space-y-6"}>
-          {usingMock && (
-            <div className="glass-card p-3 text-sm text-yellow-300">
-              Using mock stream data - backend returned no stream.
+      <div className="watch-page relative">
+        <div className="pointer-events-none absolute -top-32 -left-32 h-72 w-72 rounded-full bg-primary/15 blur-[140px]" />
+        <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-accent/15 blur-[160px]" />
+
+        <div
+          className={`relative z-10 grid grid-cols-1 ${
+            theaterMode ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,1fr)_360px]"
+          } gap-6`}
+        >
+          <section className="space-y-6">
+            {usingMock && (
+              <div className="glass-card p-3 text-sm text-yellow-300">
+                Using mock stream data - backend returned no stream.
+              </div>
+            )}
+
+            <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/60 shadow-[0_25px_60px_rgba(2,6,23,0.6)]">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-bg/60 to-accent/10" />
+              <div className="relative">
+                <Player
+                  ref={playerRef}
+                  src={playbackSrc}
+                  poster={posterSrc}
+                  title={stream.title ?? "Live"}
+                  heightClass="aspect-video"
+                />
+                <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-bg/90 via-bg/20 to-transparent" />
+              </div>
+
+              <div className="absolute inset-x-6 bottom-6 z-10 hidden lg:flex flex-col gap-5">
+                <div className="flex items-start justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div
+                        className="h-14 w-14 rounded-2xl p-[1px]"
+                        style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-accent))" }}
+                      >
+                        <div className="h-full w-full rounded-2xl bg-bg/80 flex items-center justify-center text-sm font-bold text-text">
+                          {streamerInitials}
+                        </div>
+                      </div>
+                      {isLive && (
+                        <span className="absolute -bottom-2 -right-2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-lg">
+                          Live
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-2xl font-semibold text-text">{stream.title ?? "Live stream"}</h2>
+                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+                          Verified
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-subtle">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                          {viewerCount} viewers
+                        </span>
+                        <span>Live session</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isOwner && (
+                      <button
+                        onClick={toggleFollow}
+                        className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                        disabled={followLoading}
+                      >
+                        {followLoading ? "Loading..." : following ? "Following" : "Follow"}
+                      </button>
+                    )}
+                    <button
+                      onClick={focusChat}
+                      className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => setOpenTip(true)}
+                      className="rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-bg shadow-lg shadow-primary/30 hover:brightness-110 transition"
+                    >
+                      Tip Streamer
+                    </button>
+                    <button
+                      onClick={mintClip}
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                    >
+                      Mint Clip
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-bg/70 px-4 py-3">
+                  <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      Low latency
+                    </span>
+                    <span className="h-1 w-1 rounded-full bg-white/30" />
+                    <span>1080p 60fps</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setTheaterMode((s) => !s)}
+                      className={`rounded-full border border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] transition ${
+                        theaterMode ? "bg-white/10 text-text" : "text-subtle hover:text-text"
+                      }`}
+                    >
+                      {theaterMode ? "Exit Theater" : "Theater"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await playerRef.current?.requestFullscreen?.();
+                        } catch (err) {
+                          toast.error("Fullscreen failed");
+                        }
+                      }}
+                      className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-subtle hover:text-text transition"
+                    >
+                      Fullscreen
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
 
-          <div>
-            <Player
-              ref={playerRef}
-              src={stream.playbackUrl ?? stream.videoUrl ?? undefined}
-              poster={stream.thumbnail ?? undefined}
-              title={stream.title ?? "Live"}
-              heightClass="aspect-video"
-            />
-          </div>
+            <div className="glass-card space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-subtle">Stream brief</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-text">{stream.title ?? "Live stream"}</h2>
+                  <p className="mt-2 text-sm text-subtle">
+                    {stream.description ?? "Live on Petra Stream. Join the chat and support the creator."}
+                  </p>
+                </div>
+                {isLive && (
+                  <span className="rounded-full bg-rose-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-200">
+                    Live now
+                  </span>
+                )}
+              </div>
 
-          <div className="glass-card flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-extrabold text-primary">{stream.title}</h2>
-              <div className="muted mt-1 max-w-xl">{stream.description}</div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <span className="text-xs subtle">Live - {stream.viewerCount ?? 0} viewers</span>
-                {Array.isArray(stream.tags) &&
-                  stream.tags.slice(0, 5).map((t: string) => (
-                    <span key={t} className="text-xs px-2 py-1 rounded-md bg-bg/20 text-text">
+              <div className="flex flex-wrap items-center gap-2">
+                {tags.length ? (
+                  tags.slice(0, 6).map((t) => (
+                    <span key={t} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-subtle">
                       #{t}
                     </span>
-                  ))}
+                  ))
+                ) : (
+                  <span className="text-xs text-subtle">No tags yet</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 text-xs text-subtle">
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  {viewerCount} viewers
+                </span>
+                <span className="font-mono">Streamer: {streamerLabel}</span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 lg:hidden">
+                {!isOwner && (
+                  <button
+                    onClick={toggleFollow}
+                    className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                    disabled={followLoading}
+                  >
+                    {followLoading ? "Loading..." : following ? "Following" : "Follow"}
+                  </button>
+                )}
+                <button
+                  onClick={focusChat}
+                  className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setOpenTip(true)}
+                  className="rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-bg shadow-lg shadow-primary/30 hover:brightness-110 transition"
+                >
+                  Tip Streamer
+                </button>
+                <button
+                  onClick={mintClip}
+                  className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                >
+                  Mint Clip
+                </button>
+                <button
+                  onClick={() => setTheaterMode((s) => !s)}
+                  className={`rounded-2xl border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
+                    theaterMode ? "bg-white/10 text-text" : "text-subtle hover:text-text"
+                  }`}
+                >
+                  {theaterMode ? "Exit Theater" : "Theater"}
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await playerRef.current?.requestFullscreen?.();
+                    } catch (err) {
+                      toast.error("Fullscreen failed");
+                    }
+                  }}
+                  className="rounded-2xl border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-subtle hover:text-text transition"
+                >
+                  Fullscreen
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => setOpenTip(true)} className="btn-primary" title="Tip streamer (t)">
-                Tip Streamer
-              </button>
-
-              <button
-                onClick={() => {
-                  const el = document.getElementById(chatInputId) as HTMLInputElement | null;
-                  el?.focus();
-                }}
-                className="px-3 py-2 rounded-md border"
-                title="Focus chat (c)"
-              >
-                Chat
-              </button>
-
-              <button
-                onClick={async () => {
-                  try {
-                    await playerRef.current?.requestFullscreen?.();
-                  } catch (err) {
-                    toast.error("Fullscreen failed");
-                  }
-                }}
-                className="px-3 py-2 rounded-md border"
-                title="Fullscreen (f)"
-              >
-                Fullscreen
-              </button>
-
-              <button
-                onClick={() => setTheaterMode((s) => !s)}
-                className={`px-3 py-2 rounded-md border ${theaterMode ? "bg-surface/80" : ""}`}
-                title="Theater mode (y)"
-              >
-                {theaterMode ? "Exit Theater" : "Theater"}
-              </button>
-            </div>
-          </div>
-
-          <section>
-            <h3 className="font-semibold mb-2 text-text">Activity</h3>
-
-            <ChatPanel streamId={String(streamId)} inputId={chatInputId} currentUser={currentUser} />
+            <section>
+              <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {related.length ? (
+                  related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
+                ) : (
+                  <div className="muted">No related streams found.</div>
+                )}
+              </div>
+            </section>
           </section>
 
-          <section>
-            <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {related.length ? (
-                related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
-              ) : (
-                <div className="muted">No related streams found.</div>
-              )}
-            </div>
-          </section>
+          {!theaterMode && (
+            <aside className="space-y-6">
+              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-5 shadow-[0_20px_40px_rgba(2,6,23,0.5)]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-text">Live Activity</h3>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">On-chain indexer</p>
+                  </div>
+                  <button className="rounded-full border border-white/10 p-2 text-subtle hover:text-text transition">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {activityLoading ? (
+                    <div className="rounded-2xl border border-white/10 bg-bg/70 p-4 text-xs text-subtle">
+                      Loading activity...
+                    </div>
+                  ) : activity.length ? (
+                    activity.map((item) => {
+                      const meta = activityMeta(item.kind);
+                      return (
+                        <div key={item.id} className={`rounded-2xl border p-4 ${meta.card}`}>
+                          <div className="flex items-center justify-between text-xs text-subtle">
+                            <span className="font-semibold text-text">{item.title}</span>
+                            <span>{formatTime(item.ts)}</span>
+                          </div>
+                          {item.description && (
+                            <p className="mt-2 text-sm text-subtle">{item.description}</p>
+                          )}
+                          <span
+                            className={`mt-3 inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${meta.badge}`}
+                          >
+                            {meta.label}
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-bg/70 p-4 text-xs text-subtle">
+                      No activity yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[360px]">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-text">Chat</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">Live</span>
+                </div>
+                <div className="flex-1 min-h-[320px]">
+                  <ChatPanel streamId={String(streamId)} inputId={chatInputId} currentUser={currentUser} />
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-text">Supporters</h4>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">On-chain</span>
+                </div>
+                <ViewerList streamId={String(streamId)} />
+              </div>
+            </aside>
+          )}
         </div>
-
-        {!theaterMode && (
-          <aside className="glass-card">
-            <div className="mb-4">
-              <h4 className="text-sm subtle">Streamer</h4>
-              <div className="font-mono text-text mt-1">{streamerAddress}</div>
-            </div>
-
-            <div className="mb-4">
-              <h4 className="text-sm subtle">Supporters</h4>
-              <ViewerList streamId={String(streamId)} />
-            </div>
-
-            <div className="mb-4">
-              <h4 className="text-sm subtle">Related</h4>
-              <div className="space-y-2">
-                {related.slice(0, 3).map((r) => (
-                  <StreamCard key={r.streamer || r.id} stream={r as any} />
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4 text-sm subtle">
-              Events and on-chain actions for this stream will appear in realtime via the indexer.
-            </div>
-          </aside>
-        )}
       </div>
 
       {openTip && (

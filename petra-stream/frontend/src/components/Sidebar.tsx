@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import api from "../lib/api";
 import { useToast } from "../contexts/ToastContext";
+import { readAuthUser } from "../lib/auth";
 
 type Streamer = { id: string; name: string; viewers?: number; avatar?: string; address?: string };
 
@@ -97,6 +98,8 @@ export default function Sidebar({
   const [categories, setCategories] = useState<{ id: string; label: string }[]>(defaultCategories);
   const [trending, setTrending] = useState<string[]>(defaultTrending);
   const [topStreamers, setTopStreamers] = useState<Streamer[]>([]);
+  const [followed, setFollowed] = useState<Set<string>>(new Set());
+  const [authUser, setAuthUser] = useState(readAuthUser());
   const [recent, setRecent] = useState<Streamer[]>(() => {
     try {
       const raw = localStorage.getItem("recent_watched");
@@ -107,6 +110,16 @@ export default function Sidebar({
   });
   const toast = useToast();
   const location = useLocation();
+
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("auth-changed", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -126,8 +139,54 @@ export default function Sidebar({
     })();
   }, [apiPrefix]);
 
-  function followStreamer(s: Streamer) {
-    toast.success("Following", `You are now following ${s.name}`, 2000);
+  useEffect(() => {
+    if (!authUser || topStreamers.length === 0) return;
+    let active = true;
+    (async () => {
+      try {
+        const results = await Promise.all(
+          topStreamers.map(async (s) => {
+            const res = await api
+              .get(`/api/users/${encodeURIComponent(s.id)}/following`)
+              .catch(() => null);
+            return res?.data?.following ? s.id : null;
+          })
+        );
+        if (!active) return;
+        const next = new Set(results.filter(Boolean) as string[]);
+        setFollowed(next);
+      } catch {
+        // ignore follow state errors
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authUser, topStreamers]);
+
+  async function followStreamer(s: Streamer) {
+    if (!authUser) {
+      toast.info("Sign in required", "Please sign in to follow creators.", 2500);
+      return;
+    }
+    const prev = followed;
+    const isFollowing = prev.has(s.id);
+    const next = new Set(prev);
+    if (isFollowing) {
+      next.delete(s.id);
+    } else {
+      next.add(s.id);
+    }
+    setFollowed(next);
+    try {
+      await api
+        .post(`/api/users/${encodeURIComponent(s.id)}/follow`, { action: isFollowing ? "unfollow" : "follow" })
+        .catch(() => null);
+      toast.success(isFollowing ? "Unfollowed" : "Followed", undefined, 2000);
+    } catch {
+      toast.error("Action failed", undefined, 2000);
+      setFollowed(prev);
+    }
   }
 
   function addRecent(s: Streamer) {
@@ -229,7 +288,7 @@ export default function Sidebar({
                   onClick={() => followStreamer(s)}
                   className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 font-bold hover:bg-primary hover:border-primary hover:text-bg transition"
                 >
-                  Follow
+                  {followed.has(s.id) ? "Following" : "Follow"}
                 </button>
               </li>
             ))}

@@ -1,6 +1,8 @@
 // src/pages/Notifications.tsx
 import React, { useEffect, useState } from "react";
 import api from "../lib/api";
+import { readAuthUser } from "../lib/auth";
+import socket from "../lib/socket";
 
 type NotificationItem = {
   id: string;
@@ -8,7 +10,7 @@ type NotificationItem = {
   description?: string;
   time?: string;
   ts?: number;
-  kind: "tip" | "system" | "stream";
+  kind: "tip" | "system" | "stream" | "follow" | "mention" | "reply";
 };
 
 const SAMPLE: NotificationItem[] = [
@@ -24,11 +26,19 @@ const SAMPLE: NotificationItem[] = [
 export default function Notifications(): JSX.Element {
   const [items, setItems] = useState<NotificationItem[]>(SAMPLE);
   const [loading, setLoading] = useState(true);
+  const [authUser, setAuthUser] = useState(() => readAuthUser());
+
+  useEffect(() => {
+    const refresh = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", refresh);
+    return () => window.removeEventListener("auth-changed", refresh);
+  }, []);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       try {
-        const res = await api.get("/api/notifications").catch(() => null);
+        const res = await api.get("/api/notifications/me").catch(() => null);
         if (res?.data?.data && Array.isArray(res.data.data)) {
           setItems(res.data.data);
         }
@@ -38,7 +48,47 @@ export default function Notifications(): JSX.Element {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [authUser]);
+
+  useEffect(() => {
+    const identity =
+      authUser?.username || authUser?.address || authUser?.id || authUser?.displayName || "";
+    if (!identity) return;
+    const room = `user:${identity}`;
+
+    try {
+      if (socket && typeof socket.connect === "function" && !socket.connected) {
+        socket.auth = { user: identity };
+        socket.connect();
+      }
+      socket.emit?.("join", { room, user: identity });
+    } catch (err) {
+      console.warn("Notifications socket join failed", err);
+    }
+
+    const onNotification = (payload: any) => {
+      if (!payload) return;
+      const item: NotificationItem = {
+        id: String(payload.id ?? `n-${Date.now()}`),
+        title: String(payload.title ?? "Notification"),
+        description: payload.description ? String(payload.description) : undefined,
+        kind: (payload.kind as NotificationItem["kind"]) || "system",
+        ts: Number(payload.ts ?? Date.now()),
+      };
+      setItems((prev) => {
+        if (prev.some((n) => n.id === item.id)) return prev;
+        return [item, ...prev].slice(0, 50);
+      });
+    };
+
+    socket.on("notification", onNotification);
+    return () => {
+      socket.off("notification", onNotification);
+      try {
+        socket.emit?.("leave", { room });
+      } catch {}
+    };
+  }, [authUser]);
 
   const formatTime = (n: NotificationItem) => {
     if (n.time) return n.time;

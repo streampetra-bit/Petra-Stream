@@ -3,6 +3,7 @@ import { WebSocketProvider, JsonRpcProvider, Interface } from 'ethers';
 import prisma from '../prisma/client';
 import { NotificationsGateway } from '../gateway/notifications.gateway';
 import { StreamsService } from '../streams/streams.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BlockIndexerService implements OnModuleInit {
@@ -15,7 +16,8 @@ export class BlockIndexerService implements OnModuleInit {
 
   constructor(
     private readonly notifications: NotificationsGateway,
-    private readonly streamsService: StreamsService
+    private readonly streamsService: StreamsService,
+    private readonly notificationsService: NotificationsService
   ) {
     // prefer explicit Somnia endpoints; skip if not configured
     const wsOrHttp =
@@ -147,6 +149,12 @@ export class BlockIndexerService implements OnModuleInit {
           token: token.toString(),
           amount: netAmount.toString()
         });
+        void this.notificationsService.notifyTip(
+          to.toString(),
+          from.toString(),
+          netAmount.toString(),
+          token.toString()
+        );
       }
 
       if (parsed.name === 'NFTGift') {
@@ -182,6 +190,12 @@ export class BlockIndexerService implements OnModuleInit {
           tokenId: tokenId.toString(),
           kind: 'nft'
         });
+        void this.notificationsService.notifyTip(
+          to.toString(),
+          from.toString(),
+          `NFT ${tokenId.toString()}`,
+          nft.toString()
+        );
       }
     } catch (err: unknown) {
       // err may be unknown type — normalize safely for logging

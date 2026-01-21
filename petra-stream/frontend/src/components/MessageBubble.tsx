@@ -10,12 +10,14 @@ export default function MessageBubble({
   onDelete,
   onTimeout,
   isModerator = false,
+  onReply,
 }: {
   msg: ChatMsg;
   mine?: boolean;
   onDelete?: () => void;
   onTimeout?: () => void;
   isModerator?: boolean;
+  onReply?: () => void;
 }) {
   const time = new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -39,6 +41,12 @@ export default function MessageBubble({
             msg.deleted ? "bg-red-700/30 text-subtle italic" : mine ? "bg-primary/10 text-text" : "bg-bg/20 text-text"
           )}
         >
+          {msg.replyToUser && !msg.deleted && (
+            <div className="mb-1 text-[10px] subtle">
+              Replying to @{msg.replyToUser}
+              {msg.replyToText ? `: "${msg.replyToText.slice(0, 60)}"` : ""}
+            </div>
+          )}
           {msg.deleted ? "[message removed]" : msg.text}
         </div>
 
@@ -50,6 +58,13 @@ export default function MessageBubble({
             </button>
             <button className="px-2 py-1 rounded-md border text-xs" onClick={onTimeout}>
               Timeout 1m
+            </button>
+          </div>
+        )}
+        {!msg.system && !msg.deleted && onReply && (
+          <div className="mt-1 text-xs">
+            <button className="px-2 py-1 rounded-md border text-xs" onClick={onReply}>
+              Reply
             </button>
           </div>
         )}

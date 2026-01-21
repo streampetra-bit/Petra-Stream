@@ -38,6 +38,16 @@ type ChatDoc = {
   user: string;
   text: string;
   ts: number;
+  replyToUser?: string;
+  replyToText?: string;
+};
+
+type NotificationDoc = {
+  user: string;
+  title: string;
+  description?: string;
+  kind: string;
+  ts: number;
 };
 
 const StreamModel = model<StreamDoc>(
@@ -98,6 +108,22 @@ const ChatModel = model<ChatDoc>(
       streamId: { type: String, index: true },
       user: String,
       text: String,
+      ts: Number,
+      replyToUser: String,
+      replyToText: String
+    },
+    { timestamps: true }
+  )
+);
+
+const NotificationModel = model<NotificationDoc>(
+  'Notification',
+  new Schema<NotificationDoc>(
+    {
+      user: { type: String, index: true },
+      title: String,
+      description: String,
+      kind: String,
       ts: Number
     },
     { timestamps: true }
@@ -199,4 +225,14 @@ export async function mongoSaveChatMessage(msg: ChatDoc) {
 export async function mongoListChatMessages(streamId: string, limit = 100): Promise<ChatDoc[]> {
   if (!(await ensureMongo())) return [];
   return ChatModel.find({ streamId }).sort({ ts: 1 }).limit(limit).lean().exec();
+}
+
+export async function mongoSaveNotification(data: NotificationDoc) {
+  if (!(await ensureMongo())) return;
+  await NotificationModel.create(data);
+}
+
+export async function mongoListNotifications(user: string, limit = 20): Promise<NotificationDoc[]> {
+  if (!(await ensureMongo())) return [];
+  return NotificationModel.find({ user }).sort({ ts: -1, createdAt: -1 }).limit(limit).lean().exec();
 }

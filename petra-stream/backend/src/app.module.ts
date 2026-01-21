@@ -3,13 +3,12 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { StreamsModule } from './streams/streams.module';
 import { IndexerModule } from './indexer/indexer.module';
-import { NotificationsGateway } from './gateway/notifications.gateway';
 import { UsersModule } from './users/users.module';
 import { ChatGateway } from './gateway/chat.gateway';
 import { MetaController } from './meta/meta.controller';
-import { NotificationsController } from './notifications/notifications.controller';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,11 +17,11 @@ import { HealthController } from './health/health.controller';
     }),
     StreamsModule,
     IndexerModule,
-    UsersModule
+    UsersModule,
+    NotificationsModule
   ],
-  controllers: [MetaController, NotificationsController, AuthController, HealthController],
+  controllers: [MetaController, AuthController, HealthController],
   providers: [
-    NotificationsGateway,
     ChatGateway,
     {
       provide: APP_GUARD,
