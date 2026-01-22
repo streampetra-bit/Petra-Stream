@@ -581,6 +581,36 @@ export default function CreatePage(): JSX.Element {
               ) : null}
             </section>
 
+            <section className="glass-card rounded-3xl p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-text">Broadcast controls</h3>
+                  <p className="text-xs subtle mt-1">Start or end your live session without leaving the page.</p>
+                </div>
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-[0.2em] ${statusTone}`}>
+                  {statusLabel}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={primaryCtaAction}
+                  disabled={loading}
+                  className="flex-1 h-14 bg-primary text-bg font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-glow-primary flex items-center justify-center gap-3"
+                >
+                  {loading ? "Working..." : primaryCtaLabel}
+                </button>
+                {showStopButton && (
+                  <button
+                    onClick={stopStream}
+                    disabled={loading}
+                    className="flex-1 h-14 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
+                  >
+                    Stop broadcasting
+                  </button>
+                )}
+              </div>
+            </section>
+
             <section className="relative">
               <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-primary/30 to-accent/30 blur-2xl opacity-40" />
               <div className="relative glass-card rounded-[2.5rem] p-3">
@@ -967,30 +997,6 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </details>
 
-              <div className="pt-8">
-                <button
-                  onClick={primaryCtaAction}
-                  disabled={loading}
-                  className="w-full h-16 bg-primary text-bg font-black text-sm uppercase tracking-[0.2em] rounded-2xl shadow-glow-primary flex items-center justify-center gap-3"
-                >
-                  {loading ? "Working..." : primaryCtaLabel}
-                </button>
-                {showStopButton && (
-                  <button
-                    onClick={stopStream}
-                    disabled={loading}
-                    className="mt-4 w-full h-12 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-xs font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
-                  >
-                    Stop broadcasting
-                  </button>
-                )}
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  <span className="text-emerald-400 text-xs">*</span>
-                  <p className="text-white/30 text-[9px] uppercase font-bold tracking-[0.2em]">
-                    Secured by on-chain multisig
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </div>

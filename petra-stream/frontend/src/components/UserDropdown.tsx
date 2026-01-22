@@ -59,11 +59,7 @@ export default function UserDropdown(): JSX.Element {
     toast.info("Signed out", undefined, 2000);
   }
 
-  const label =
-    user?.displayName ||
-    user?.username ||
-    user?.email ||
-    (user?.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : "Account");
+  const label = user?.displayName || user?.username || user?.email || "Account";
   const initials = label.slice(0, 2).toUpperCase();
   const profileId = user?.username || user?.address || user?.id || "me";
 
@@ -83,7 +79,9 @@ export default function UserDropdown(): JSX.Element {
 
             <div className="hidden sm:block text-left min-w-0">
               <div className="text-sm font-medium text-text truncate">{label}</div>
-              <div className="text-xs subtle">{user?.username ? "Member" : "Account"}</div>
+              <div className="text-xs subtle">
+                {user?.username ? "Member" : user?.address ? "Wallet connected" : "Account"}
+              </div>
             </div>
           </button>
 
