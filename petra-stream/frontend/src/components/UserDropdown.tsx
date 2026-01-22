@@ -59,7 +59,22 @@ export default function UserDropdown(): JSX.Element {
     toast.info("Signed out", undefined, 2000);
   }
 
-  const label = user?.displayName || user?.username || user?.email || "Account";
+  const resolveLabel = (value?: string) => {
+    if (!value) return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const normalized = trimmed.toLowerCase();
+    const addr = user?.address?.toLowerCase();
+    if (addr && normalized === addr) return "";
+    if (/^0x[a-f0-9]{40}$/i.test(normalized)) return "";
+    return trimmed;
+  };
+
+  const label =
+    resolveLabel(user?.displayName) ||
+    resolveLabel(user?.username) ||
+    resolveLabel(user?.email) ||
+    "Account";
   const initials = label.slice(0, 2).toUpperCase();
   const profileId = user?.username || user?.address || user?.id || "me";
 
