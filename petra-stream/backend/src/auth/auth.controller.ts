@@ -27,7 +27,7 @@ export class AuthController {
   }
 
   @Post('verify')
-  async verify(@Body() body: { address?: string; signature?: string }) {
+  async verify(@Req() req: any, @Body() body: { address?: string; signature?: string }) {
     const address = body.address?.toLowerCase();
     const signature = body.signature;
 
@@ -55,13 +55,6 @@ export class AuthController {
     // nonce is one-time use
     await prisma.authNonce.delete({ where: { address } }).catch(() => {});
 
-    // ensure user exists
-    await prisma.user.upsert({
-      where: { address },
-      update: {},
-      create: { address, displayName: address.slice(0, 10) }
-    });
-
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       throw new UnauthorizedException('JWT secret not configured');
@@ -69,9 +62,42 @@ export class AuthController {
     const secretKey: Secret = secret;
     const expiresIn: SignOptions['expiresIn'] =
       (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn']) || '7d';
-    const user = await prisma.user.findFirst({ where: { address } });
-    const token = jwt.sign({ address, userId: user?.id, username: user?.username }, secretKey, { expiresIn });
 
+    const authHeader = req?.headers?.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    let user = null as any;
+
+    let decoded: any = null;
+    if (bearer) {
+      try {
+        decoded = jwt.verify(bearer, secretKey);
+      } catch {
+        decoded = null;
+      }
+    }
+    if (decoded?.userId) {
+      const existing = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      if (existing) {
+        const conflict = await prisma.user.findFirst({ where: { address } });
+        if (conflict && conflict.id !== existing.id) {
+          throw new UnauthorizedException('Wallet already linked to another account');
+        }
+        user = await prisma.user.update({
+          where: { id: existing.id },
+          data: { address }
+        });
+      }
+    }
+
+    if (!user) {
+      user = await prisma.user.upsert({
+        where: { address },
+        update: {},
+        create: { address, displayName: address.slice(0, 10) }
+      });
+    }
+
+    const token = jwt.sign({ address, userId: user?.id, username: user?.username }, secretKey, { expiresIn });
     return { token, address, expiresIn, user };
   }
 

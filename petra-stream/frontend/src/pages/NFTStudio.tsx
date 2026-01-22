@@ -81,6 +81,7 @@ export default function NFTStudio(): JSX.Element {
   const explorerUrl = String(import.meta.env.VITE_SOMNIA_EXPLORER_URL || "");
   const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || "SOM");
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
+  const requireRegistry = String(import.meta.env.VITE_REQUIRE_STREAMER_REGISTRY || "false").toLowerCase() === "true";
   const clipNftAddress = String(import.meta.env.VITE_CLIP_NFT_ADDRESS || "");
 
   useEffect(() => {
@@ -210,7 +211,9 @@ export default function NFTStudio(): JSX.Element {
     }
   }
 
-  async function ensureStreamerRegistered(signer: ethers.Signer, address: string) {
+  async function ensureStreamerRegistered(signer: ethers.Signer, address: string, force = false) {
+    const shouldRegister = force || requireRegistry;
+    if (!shouldRegister) return true;
     if (!registryAddress || !ethers.isAddress(registryAddress)) return true;
     try {
       const registry = new ethers.Contract(
@@ -280,7 +283,7 @@ export default function NFTStudio(): JSX.Element {
     }
     const wallet = await ensureWalletConnected();
     if (!wallet) return;
-    const registered = await ensureStreamerRegistered(wallet.signer, wallet.address);
+    const registered = await ensureStreamerRegistered(wallet.signer, wallet.address, requireRegistry);
     if (!registered) return;
     setMinting(true);
     try {

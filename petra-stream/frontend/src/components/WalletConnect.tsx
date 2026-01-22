@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { ethers } from 'ethers';
 import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
-import { AUTH_TOKEN_KEY, clearAuth, notifyAuthChange, writeAuth } from '../lib/auth';
+import { AUTH_TOKEN_KEY, clearAuth, notifyAuthChange, readAuthUser, writeAuth } from '../lib/auth';
 import WalletHelpModal from './WalletHelpModal';
 
 declare global {
@@ -74,6 +74,7 @@ export default function WalletConnect(): JSX.Element {
 
   async function authenticate(addr: string, signer: ethers.Signer) {
     try {
+      const currentUser = readAuthUser();
       const nonceRes = await api.get('/api/auth/nonce', { params: { address: addr } }).catch(() => null);
       const message = nonceRes?.data?.message;
       if (!message) {
@@ -86,7 +87,8 @@ export default function WalletConnect(): JSX.Element {
       const user = verifyRes?.data?.user;
       if (token) {
         if (user) {
-          writeAuth(user, token);
+          const merged = currentUser ? { ...currentUser, ...user } : user;
+          writeAuth(merged, token);
         } else {
           localStorage.setItem(AUTH_TOKEN_KEY, token);
           notifyAuthChange();

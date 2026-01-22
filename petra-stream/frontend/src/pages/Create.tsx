@@ -33,6 +33,7 @@ export default function CreatePage(): JSX.Element {
   const [tokenGated, setTokenGated] = useState(true);
   const [royaltyPct, setRoyaltyPct] = useState(8);
   const [showWalletHelp, setShowWalletHelp] = useState(false);
+  const [registeringWallet, setRegisteringWallet] = useState(false);
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -50,6 +51,7 @@ export default function CreatePage(): JSX.Element {
   const hlsBaseUrl = import.meta.env.VITE_HLS_BASE_URL || "";
   const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
+  const requireRegistry = String(import.meta.env.VITE_REQUIRE_STREAMER_REGISTRY || "false").toLowerCase() === "true";
   const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
   const chainIdHex = `0x${chainId.toString(16)}`;
   const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || "Somnia Testnet");
@@ -180,7 +182,8 @@ export default function CreatePage(): JSX.Element {
       const user = verifyRes?.data?.user;
       if (token) {
         if (user) {
-          writeAuth(user, token);
+          const merged = currentUser ? { ...currentUser, ...user } : user;
+          writeAuth(merged, token);
         } else {
           localStorage.setItem(AUTH_TOKEN_KEY, token);
           notifyAuthChange();
@@ -220,7 +223,9 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
-  async function ensureStreamerRegistered(signer: ethers.Signer, address: string) {
+  async function ensureStreamerRegistered(signer: ethers.Signer, address: string, force = false) {
+    const shouldRegister = force || requireRegistry;
+    if (!shouldRegister) return true;
     if (!registryAddress || !ethers.isAddress(registryAddress)) {
       toast.error("Registry missing", "Set VITE_REGISTRY_ADDRESS to enable creator registration.");
       return false;
@@ -252,9 +257,20 @@ export default function CreatePage(): JSX.Element {
   async function ensureWalletReady() {
     const wallet = await ensureWalletConnected();
     if (!wallet) return null;
-    const registered = await ensureStreamerRegistered(wallet.signer, wallet.address);
+    const registered = await ensureStreamerRegistered(wallet.signer, wallet.address, requireRegistry);
     if (!registered) return null;
     return wallet;
+  }
+
+  async function registerStreamerNow() {
+    const wallet = await ensureWalletConnected();
+    if (!wallet) return;
+    setRegisteringWallet(true);
+    try {
+      await ensureStreamerRegistered(wallet.signer, wallet.address, true);
+    } finally {
+      setRegisteringWallet(false);
+    }
   }
 
   async function ensureStreamKey(): Promise<string | null> {
@@ -754,7 +770,24 @@ export default function CreatePage(): JSX.Element {
               </section>
 
               <section className="mt-10 space-y-6">
-                <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em]">Web3 Monetization</h4>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em]">Web3 Monetization</h4>
+                    <p className="text-[10px] text-white/40 mt-2">
+                      Wallet connection unlocks creator tools. On-chain registration is optional.
+                    </p>
+                  </div>
+                  {registryAddress && ethers.isAddress(registryAddress) ? (
+                    <button
+                      type="button"
+                      onClick={registerStreamerNow}
+                      disabled={registeringWallet}
+                      className="px-3 py-2 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em]"
+                    >
+                      {registeringWallet ? "Registering..." : "Register wallet"}
+                    </button>
+                  ) : null}
+                </div>
                 <div className="space-y-6">
                   <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div>

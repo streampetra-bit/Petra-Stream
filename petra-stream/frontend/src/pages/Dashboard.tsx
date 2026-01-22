@@ -317,6 +317,7 @@ export default function Dashboard(): JSX.Element {
     ],
     [profile.followers]
   );
+  const walletAddress = walletSnapshot?.address || authUser?.address;
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -367,10 +368,12 @@ export default function Dashboard(): JSX.Element {
                   </svg>
                 </div>
                 <div className="overflow-hidden">
-                  <div className="text-xs font-mono text-subtle truncate">
-                    {formatWalletAddress(walletSnapshot?.address || authUser?.address || authUser?.username || authUser?.id)}
+                  <div className="text-xs text-subtle uppercase tracking-[0.2em]">Creator</div>
+                  <div className="text-sm font-bold text-text truncate">{profile.name}</div>
+                  <div className="text-xs font-mono text-subtle truncate mt-1">
+                    Wallet: {formatWalletAddress(walletAddress)}
                   </div>
-                  <div className="text-sm font-bold text-text">
+                  <div className="text-sm font-bold text-text mt-1">
                     {walletLoading
                       ? "Loading..."
                       : `${formatWalletBalance(walletSnapshot?.balance)} ${walletSnapshot?.symbol ?? ""}`.trim()}
