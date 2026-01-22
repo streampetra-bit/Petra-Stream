@@ -5,17 +5,17 @@
   "scripts": {
     "test": "hardhat test",
     "compile": "hardhat compile",
-    "deploy:shannon": "hardhat run scripts/deploy.ts --network shannon"
+    "deploy:shannon": "hardhat run scripts/deploy.ts --network shannon",
+    "deploy:clip:shannon": "hardhat run scripts/deploy_clip_nft.ts --network shannon"
   },
   "devDependencies": {
+    "dotenv": "^16.4.5",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.2",
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-etherscan": "^3.1.8",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@openzeppelin/contracts": "^4.9.6",
     "@types/node": "^24.10.0",
-    "chai": "^6.2.0",
+    "chai": "^4.3.10",
     "ethers": "^6.15.0",
     "hardhat": "^2.27.0",
     "hardhat-deploy": "^1.0.4",

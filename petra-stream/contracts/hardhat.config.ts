@@ -1,5 +1,5 @@
+import "dotenv/config";
 import { HardhatUserConfig } from "hardhat/types";
-import "@nomiclabs/hardhat-ethers";
 import "@nomicfoundation/hardhat-ethers";
 import "hardhat-deploy";
 
@@ -21,7 +21,7 @@ const config: HardhatUserConfig = {
     shannon: {
       url: process.env.SOMNIA_RPC_URL || process.env.SOMNIA_TEST_HTTP || "https://your-somnia-rpc",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-      chainId: 2047 // adjust if Somnia Shannon uses a different chainId
+      chainId: 50312 // Somnia testnet chainId (update if yours differs)
     }
   },
   etherscan: {
