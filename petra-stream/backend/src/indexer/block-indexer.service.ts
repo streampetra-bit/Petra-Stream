@@ -12,6 +12,7 @@ export class BlockIndexerService implements OnModuleInit {
   private provider: WebSocketProvider | JsonRpcProvider | any;
   private ifaceRegistry!: Interface;
   private ifaceVault!: Interface;
+  private ifaceMarketplace!: Interface;
   private enabled = true;
 
   constructor(
@@ -64,6 +65,12 @@ export class BlockIndexerService implements OnModuleInit {
       'event TipReceived(address indexed from, address indexed to, address token, uint256 amount, uint256 netAmount, bytes32 memo)',
       'event NFTGift(address indexed from, address indexed to, address nft, uint256 tokenId)'
     ]);
+
+    this.ifaceMarketplace = new Interface([
+      'event ListingCreated(uint256 indexed tokenId, address indexed seller, uint256 price)',
+      'event ListingCancelled(uint256 indexed tokenId, address indexed seller)',
+      'event ListingPurchased(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price)'
+    ]);
   }
 
   async onModuleInit() {
@@ -74,6 +81,7 @@ export class BlockIndexerService implements OnModuleInit {
 
     const registryAddress = process.env.REGISTRY_ADDRESS;
     const vaultAddress = process.env.VAULT_ADDRESS;
+    const marketplaceAddress = process.env.CLIP_MARKETPLACE_ADDRESS;
 
     if (registryAddress) {
       // explicitly type log as `any` here to avoid implicit any / wrong namespace type usage
@@ -85,12 +93,24 @@ export class BlockIndexerService implements OnModuleInit {
       this.provider.on({ address: vaultAddress }, (log: any) => this.handleLog(log, 'vault'));
       this.logger.log(`Subscribed to vault logs: ${vaultAddress}`);
     }
+
+    if (marketplaceAddress) {
+      this.provider.on({ address: marketplaceAddress }, (log: any) =>
+        this.handleLog(log, 'marketplace')
+      );
+      this.logger.log(`Subscribed to marketplace logs: ${marketplaceAddress}`);
+    }
   }
 
   // Use `any` for the log parameter type to avoid depending on a specific ethers namespace type
-  private async handleLog(log: any, source: 'registry' | 'vault') {
+  private async handleLog(log: any, source: 'registry' | 'vault' | 'marketplace') {
     try {
-      const iface = source === 'registry' ? this.ifaceRegistry : this.ifaceVault;
+      const iface =
+        source === 'registry'
+          ? this.ifaceRegistry
+          : source === 'vault'
+            ? this.ifaceVault
+            : this.ifaceMarketplace;
 
       let parsed: ReturnType<Interface['parseLog']> | null = null;
       try {
@@ -214,6 +234,115 @@ export class BlockIndexerService implements OnModuleInit {
           `NFT ${tokenId.toString()}`,
           nft.toString()
         );
+      }
+
+      if (parsed.name === 'ListingCreated') {
+        const args: any = parsed.args;
+        const [tokenId, seller, price] = args;
+        const tokenIdValue = tokenId.toString();
+        const sellerAddress = seller.toString().toLowerCase();
+        const marketplace = (log.address || '').toString().toLowerCase();
+        const nftContract = process.env.CLIP_NFT_ADDRESS?.toLowerCase() || null;
+        const priceWei = BigInt(price.toString());
+
+        await prisma.clipListing.upsert({
+          where: {
+            marketplace_tokenId: {
+              marketplace,
+              tokenId: tokenIdValue
+            }
+          },
+          update: {
+            seller: sellerAddress,
+            buyer: null,
+            price: priceWei,
+            status: 'listed',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          },
+          create: {
+            marketplace,
+            tokenId: tokenIdValue,
+            seller: sellerAddress,
+            price: priceWei,
+            status: 'listed',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          }
+        });
+      }
+
+      if (parsed.name === 'ListingCancelled') {
+        const args: any = parsed.args;
+        const [tokenId, seller] = args;
+        const tokenIdValue = tokenId.toString();
+        const sellerAddress = seller.toString().toLowerCase();
+        const marketplace = (log.address || '').toString().toLowerCase();
+        const nftContract = process.env.CLIP_NFT_ADDRESS?.toLowerCase() || null;
+
+        await prisma.clipListing.upsert({
+          where: {
+            marketplace_tokenId: {
+              marketplace,
+              tokenId: tokenIdValue
+            }
+          },
+          update: {
+            seller: sellerAddress,
+            buyer: null,
+            price: BigInt(0),
+            status: 'cancelled',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          },
+          create: {
+            marketplace,
+            tokenId: tokenIdValue,
+            seller: sellerAddress,
+            price: BigInt(0),
+            status: 'cancelled',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          }
+        });
+      }
+
+      if (parsed.name === 'ListingPurchased') {
+        const args: any = parsed.args;
+        const [tokenId, seller, buyer, price] = args;
+        const tokenIdValue = tokenId.toString();
+        const sellerAddress = seller.toString().toLowerCase();
+        const buyerAddress = buyer.toString().toLowerCase();
+        const marketplace = (log.address || '').toString().toLowerCase();
+        const nftContract = process.env.CLIP_NFT_ADDRESS?.toLowerCase() || null;
+        const priceWei = BigInt(price.toString());
+
+        await prisma.clipListing.upsert({
+          where: {
+            marketplace_tokenId: {
+              marketplace,
+              tokenId: tokenIdValue
+            }
+          },
+          update: {
+            seller: sellerAddress,
+            buyer: buyerAddress,
+            price: priceWei,
+            status: 'sold',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          },
+          create: {
+            marketplace,
+            tokenId: tokenIdValue,
+            seller: sellerAddress,
+            buyer: buyerAddress,
+            price: priceWei,
+            status: 'sold',
+            txHash: log.transactionHash ?? '',
+            nftContract
+          }
+        });
       }
     } catch (err: unknown) {
       // err may be unknown type — normalize safely for logging

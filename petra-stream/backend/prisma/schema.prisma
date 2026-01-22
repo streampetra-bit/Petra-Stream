@@ -56,3 +56,33 @@ model AuthNonce {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model ClipNft {
+  id             String   @id @default(uuid())
+  tokenId        String?
+  contract       String
+  creatorAddress String
+  creatorName    String?
+  title          String
+  tokenUri       String
+  coverUrl       String?
+  mediaUrl       String?
+  txHash         String   @unique
+  createdAt      DateTime @default(now())
+}
+
+model ClipListing {
+  id          String   @id @default(uuid())
+  tokenId     String
+  marketplace String
+  nftContract String?
+  seller      String
+  buyer       String?
+  price       BigInt
+  status      String   @default("listed")
+  txHash      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([marketplace, tokenId], name: "marketplace_tokenId")
+}

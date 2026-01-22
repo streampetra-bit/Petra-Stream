@@ -65,6 +65,16 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    label: "NFT Gallery",
+    href: "/nft-gallery",
+    icon: (
+      <svg className="h-5 w-5 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4h16v12H4z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4-4 4 4 4-5 4 5" />
+      </svg>
+    ),
+  },
+  {
     label: "Analytics",
     href: "/dashboard",
     icon: (
@@ -561,8 +571,8 @@ export default function Dashboard(): JSX.Element {
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <h3 className="text-xl font-bold">Recent clips and NFTs</h3>
-                <Link to="/profile/me" className="text-primary text-sm font-bold inline-flex items-center gap-2 hover:underline">
-                  View all assets
+                <Link to="/nft-gallery" className="text-primary text-sm font-bold inline-flex items-center gap-2 hover:underline">
+                  View gallery
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14m-6-6l6 6-6 6" />
                   </svg>

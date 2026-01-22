@@ -10,6 +10,7 @@ import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WalletModule } from './wallet/wallet.module';
+import { NftsModule } from './nfts/nfts.module';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { WalletModule } from './wallet/wallet.module';
     IndexerModule,
     UsersModule,
     NotificationsModule,
-    WalletModule
+    WalletModule,
+    NftsModule
   ],
   controllers: [MetaController, AuthController, HealthController],
   providers: [

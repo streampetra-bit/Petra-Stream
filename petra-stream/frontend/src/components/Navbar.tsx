@@ -47,6 +47,9 @@ export default function Navbar(): JSX.Element {
             <Link to="/categories" className="hover:text-primary transition-colors">
               Categories
             </Link>
+            <Link to="/nft-gallery" className="hover:text-primary transition-colors">
+              NFT Gallery
+            </Link>
           </nav>
 
           <form onSubmit={onSubmitSearch} className="relative hidden lg:flex items-center flex-1 max-w-md">
@@ -155,6 +158,9 @@ export default function Navbar(): JSX.Element {
               </Link>
               <Link to="/notifications" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
                 Notifications
+              </Link>
+              <Link to="/nft-gallery" onClick={() => setOpen(false)} className="px-3 py-2 rounded-lg hover:bg-white/5 transition">
+                NFT Gallery
               </Link>
               <Link
                 to="/create"

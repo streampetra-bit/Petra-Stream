@@ -22,6 +22,8 @@ type MintRecord = {
   coverUrl?: string;
   mediaUrl?: string;
   mintedAt: string;
+  creatorAddress?: string;
+  creatorName?: string;
 };
 
 const FALLBACK_IMAGE_SVG =
@@ -317,8 +319,16 @@ export default function NFTStudio(): JSX.Element {
         coverUrl: coverUrl.trim() || undefined,
         mediaUrl: mediaUrl.trim() || undefined,
         mintedAt: new Date().toISOString(),
+        creatorAddress: wallet.address,
+        creatorName: authUser?.displayName || authUser?.username || authUser?.address || undefined,
       };
       setMinted((prev) => [record, ...prev].slice(0, 20));
+      api.post("/api/nfts", {
+        ...record,
+        contract: clipNftAddress
+      }).catch((err) => {
+        console.warn("Failed to save NFT record", err);
+      });
       toast.success("Highlight minted", tokenId ? `Token #${tokenId}` : "Transaction confirmed", 2600);
     } catch (err) {
       console.error(err);

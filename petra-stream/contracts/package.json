@@ -6,7 +6,8 @@
     "test": "hardhat test",
     "compile": "hardhat compile",
     "deploy:shannon": "hardhat run scripts/deploy.ts --network shannon",
-    "deploy:clip:shannon": "hardhat run scripts/deploy_clip_nft.ts --network shannon"
+    "deploy:clip:shannon": "hardhat run scripts/deploy_clip_nft.ts --network shannon",
+    "deploy:marketplace:shannon": "hardhat run scripts/deploy_clip_marketplace.ts --network shannon"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",

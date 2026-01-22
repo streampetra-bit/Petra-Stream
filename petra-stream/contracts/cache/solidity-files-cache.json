@@ -1306,6 +1306,52 @@
       "artifacts": [
         "ERC721Mock"
       ]
+    },
+    "C:\\Users\\LENOVO\\Documents\\Petra-Stream\\petra-stream\\contracts\\contracts\\ClipMarketplace.sol": {
+      "lastModificationDate": 1769097232270,
+      "contentHash": "704ff55eefad6cbed822745ff7baad2e",
+      "sourceName": "contracts/ClipMarketplace.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata",
+                "devdoc",
+                "userdoc",
+                "storageLayout",
+                "evm.gasEstimates"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          },
+          "metadata": {
+            "useLiteralContent": true
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/security/ReentrancyGuard.sol",
+        "@openzeppelin/contracts/token/ERC721/IERC721.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ClipMarketplace"
+      ]
     }
   }
 }

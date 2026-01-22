@@ -10,6 +10,7 @@ import ProfilePage from "./pages/Profile";
 import DashboardPage from "./pages/Dashboard";
 import CreatePage from "./pages/Create";
 import NFTStudio from "./pages/NFTStudio";
+import NFTGallery from "./pages/NFTGallery";
 import Top from "./pages/Top";
 import Settings from "./pages/Settings";
 import Categories from "./pages/Categories";
@@ -48,6 +49,7 @@ function Layout() {
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/create" element={<CreatePage />} />
       <Route path="/nft-studio" element={<NFTStudio />} />
+      <Route path="/nft-gallery" element={<NFTGallery />} />
 
       {/* UI routes */}
       <Route path="/top" element={<Top />} />
