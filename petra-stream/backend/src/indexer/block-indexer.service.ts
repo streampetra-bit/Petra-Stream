@@ -109,6 +109,12 @@ export class BlockIndexerService implements OnModuleInit {
         const args: any = parsed.args;
         const [from, to, token, amount, netAmount, memo] = args;
 
+        const tipAmountRaw = BigInt(netAmount.toString());
+        const feeBps = Number(process.env.TIP_FEE_BPS ?? 300);
+        const fee = (tipAmountRaw * BigInt(Math.max(0, feeBps))) / 10000n;
+        const creatorCredit = tipAmountRaw - fee;
+        const treasury = process.env.TREASURY_ADDRESS || 'treasury';
+
         await prisma.tip.create({
           data: {
             txHash: log.transactionHash ?? '',
@@ -116,28 +122,40 @@ export class BlockIndexerService implements OnModuleInit {
             to: to.toString(),
             streamId: to.toString(),
             token: token.toString(),
-            amount: BigInt(amount.toString()),
+            amount: BigInt(tipAmountRaw.toString()),
             memo: typeof memo === 'string' ? memo : memo?.toString()
           }
         });
 
         await prisma.balance.upsert({
           where: { id: `${to.toString()}_${token.toString()}` },
-          update: { amount: { increment: BigInt(netAmount.toString()) } as any },
+          update: { amount: { increment: creatorCredit } as any },
           create: {
             id: `${to.toString()}_${token.toString()}`,
             address: to.toString(),
             token: token.toString(),
-            amount: BigInt(netAmount.toString())
+            amount: creatorCredit
           }
         });
+        if (fee > 0n) {
+          await prisma.balance.upsert({
+            where: { id: `${treasury}_${token.toString()}` },
+            update: { amount: { increment: fee } as any },
+            create: {
+              id: `${treasury}_${token.toString()}`,
+              address: treasury,
+              token: token.toString(),
+              amount: fee
+            }
+          });
+        }
 
         await this.streamsService.recordTip(to.toString(), {
           txHash: log.transactionHash,
           from: from.toString(),
           to: to.toString(),
           token: token.toString(),
-          amount: netAmount.toString(),
+          amount: tipAmountRaw.toString(),
           memo: memo?.toString?.()
         });
 

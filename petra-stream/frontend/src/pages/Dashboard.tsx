@@ -1,13 +1,13 @@
 // src/pages/Dashboard.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import api from "../lib/api";
 import { readAuthUser } from "../lib/auth";
+import WithdrawModal from "../components/WithdrawModal";
 
 type NavItem = {
   label: string;
   href: string;
-  active?: boolean;
   icon: React.ReactNode;
 };
 
@@ -29,11 +29,16 @@ type DashboardProfile = {
   followers: number;
 };
 
+type WalletSnapshot = {
+  address?: string;
+  balance?: string;
+  symbol?: string;
+};
+
 const NAV_ITEMS: NavItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
-    active: true,
     icon: (
       <svg className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-8h8V3h-8v10z" />
@@ -51,7 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "NFT Studio",
-    href: "/create",
+    href: "/nft-studio",
     icon: (
       <svg className="h-5 w-5 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10v10H7z" />
@@ -207,6 +212,19 @@ const formatCount = (value: number) => {
   return value.toString();
 };
 
+const formatWalletAddress = (value?: string) => {
+  if (!value) return "Not connected";
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 5)}...${value.slice(-4)}`;
+};
+
+const formatWalletBalance = (value?: string) => {
+  if (!value) return "--";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric.toLocaleString(undefined, { maximumFractionDigits: 4 });
+};
+
 export default function Dashboard(): JSX.Element {
   const initialAuthUser = readAuthUser();
   const [authUser, setAuthUser] = useState(initialAuthUser);
@@ -214,6 +232,9 @@ export default function Dashboard(): JSX.Element {
     ...DEFAULT_PROFILE,
     name: initialAuthUser?.displayName || initialAuthUser?.username || DEFAULT_PROFILE.name,
   }));
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
 
   useEffect(() => {
     const refresh = () => setAuthUser(readAuthUser());
@@ -239,6 +260,38 @@ export default function Dashboard(): JSX.Element {
         }));
       })
       .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser) {
+      setWalletSnapshot(null);
+      return;
+    }
+    let active = true;
+    setWalletLoading(true);
+    api
+      .get("/api/wallet/balance")
+      .then((res) => {
+        if (!active) return;
+        if (res?.data) {
+          setWalletSnapshot({
+            address: res.data.address,
+            balance: res.data.balance,
+            symbol: res.data.symbol,
+          });
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setWalletSnapshot(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setWalletLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -271,18 +324,21 @@ export default function Dashboard(): JSX.Element {
 
             <nav className="flex flex-col gap-1">
               {NAV_ITEMS.map((item) => (
-                <Link
+                <NavLink
                   key={item.label}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
-                    item.active
-                      ? "bg-primary/10 text-text border-l-4 border-primary"
-                      : "text-subtle hover:text-text hover:bg-white/5"
-                  }`}
+                  end={item.href === "/dashboard"}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-primary/10 text-text border-l-4 border-primary"
+                        : "text-subtle hover:text-text hover:bg-white/5"
+                    }`
+                  }
                 >
                   {item.icon}
                   {item.label}
-                </Link>
+                </NavLink>
               ))}
             </nav>
           </div>
@@ -301,11 +357,21 @@ export default function Dashboard(): JSX.Element {
                   </svg>
                 </div>
                 <div className="overflow-hidden">
-                  <div className="text-xs font-mono text-subtle truncate">0x71C...8e42</div>
-                  <div className="text-sm font-bold text-text">124.50 SOL</div>
+                  <div className="text-xs font-mono text-subtle truncate">
+                    {formatWalletAddress(walletSnapshot?.address || authUser?.address || authUser?.username || authUser?.id)}
+                  </div>
+                  <div className="text-sm font-bold text-text">
+                    {walletLoading
+                      ? "Loading..."
+                      : `${formatWalletBalance(walletSnapshot?.balance)} ${walletSnapshot?.symbol ?? ""}`.trim()}
+                  </div>
                 </div>
               </div>
-              <button className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs font-bold text-text hover:bg-white/10 transition">
+              <button
+                onClick={() => setWithdrawOpen(true)}
+                type="button"
+                className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs font-bold text-text hover:bg-white/10 transition"
+              >
                 Withdraw funds
               </button>
             </div>
@@ -530,7 +596,10 @@ export default function Dashboard(): JSX.Element {
                   </div>
                 ))}
 
-                <div className="rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 hover:border-primary transition-all bg-white/5">
+                <Link
+                  to="/nft-studio"
+                  className="rounded-xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 hover:border-primary transition-all bg-white/5"
+                >
                   <div className="h-12 w-12 rounded-full bg-white/5 flex items-center justify-center">
                     <svg className="h-5 w-5 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m-7-7h14" />
@@ -540,7 +609,7 @@ export default function Dashboard(): JSX.Element {
                     <p className="text-sm font-bold">Mint new highlight</p>
                     <p className="text-xs text-subtle">Capture from live stream</p>
                   </div>
-                </div>
+                </Link>
               </div>
             </div>
 
@@ -606,6 +675,7 @@ export default function Dashboard(): JSX.Element {
           </div>
         </aside>
       </div>
+      {withdrawOpen && <WithdrawModal onClose={() => setWithdrawOpen(false)} />}
     </div>
   );
 }

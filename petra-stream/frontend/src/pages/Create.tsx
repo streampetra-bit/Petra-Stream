@@ -1,13 +1,21 @@
 ﻿
 // src/pages/Create.tsx
 import React, { useEffect, useRef, useState } from "react";
+import { ethers } from "ethers";
 import api from "../lib/api";
 import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import LocalRecorder from "../components/LocalRecorder";
 import SignInModal from "../components/SignInModal";
-import { getAuthToken } from "../lib/auth";
+import WalletHelpModal from "../components/WalletHelpModal";
+import { AUTH_TOKEN_KEY, getAuthToken, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
+
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 export default function CreatePage(): JSX.Element {
   const toast = useToast();
@@ -24,6 +32,7 @@ export default function CreatePage(): JSX.Element {
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const [tokenGated, setTokenGated] = useState(true);
   const [royaltyPct, setRoyaltyPct] = useState(8);
+  const [showWalletHelp, setShowWalletHelp] = useState(false);
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -35,10 +44,18 @@ export default function CreatePage(): JSX.Element {
     tips: 0,
     uptimeSec: 0,
   });
+  const [authUser, setAuthUser] = useState(readAuthUser());
 
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "";
   const hlsBaseUrl = import.meta.env.VITE_HLS_BASE_URL || "";
   const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
+  const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
+  const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
+  const chainIdHex = `0x${chainId.toString(16)}`;
+  const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || "Somnia Testnet");
+  const rpcUrl = String(import.meta.env.VITE_SOMNIA_RPC_URL || "");
+  const explorerUrl = String(import.meta.env.VITE_SOMNIA_EXPLORER_URL || "");
+  const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || "SOM");
   const uptimeTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -64,6 +81,12 @@ export default function CreatePage(): JSX.Element {
     return () => {
       if (uptimeTimer.current) window.clearInterval(uptimeTimer.current);
     };
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setAuthUser(readAuthUser());
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
   }, []);
 
   function requireAuth(nextMode: "login" | "register" = "login") {
@@ -100,6 +123,138 @@ export default function CreatePage(): JSX.Element {
   function handleAuthFailure() {
     toast.info("Session expired", "Please sign in again to go live.", 3000);
     setAuthMode("login");
+  }
+
+  async function ensureSomniaNetwork() {
+    if (!window.ethereum) return false;
+    try {
+      const current = await window.ethereum.request({ method: "eth_chainId" });
+      if (String(current).toLowerCase() === chainIdHex.toLowerCase()) return true;
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: chainIdHex }],
+        });
+        return true;
+      } catch (switchErr: any) {
+        if (switchErr?.code === 4902) {
+          if (!rpcUrl) {
+            toast.error("Missing RPC URL", "Set VITE_SOMNIA_RPC_URL in frontend env", 4000);
+            return false;
+          }
+          const params: any = {
+            chainId: chainIdHex,
+            chainName,
+            rpcUrls: [rpcUrl],
+            nativeCurrency: { name: chainName, symbol, decimals: 18 },
+          };
+          if (explorerUrl) params.blockExplorerUrls = [explorerUrl];
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [params],
+          });
+          return true;
+        }
+        toast.error("Wrong network", `Please switch to ${chainName}`, 3500);
+        return false;
+      }
+    } catch (err) {
+      console.error("Network check failed", err);
+      return false;
+    }
+  }
+
+  async function authenticateWallet(addr: string, signer: ethers.Signer) {
+    const currentUser = readAuthUser();
+    if (getAuthToken() && currentUser?.address?.toLowerCase() === addr.toLowerCase()) return true;
+    try {
+      const nonceRes = await api.get("/api/auth/nonce", { params: { address: addr } }).catch(() => null);
+      const message = nonceRes?.data?.message;
+      if (!message) {
+        toast.error("Auth failed", "Missing auth message", 3000);
+        return false;
+      }
+      const signature = await signer.signMessage(message);
+      const verifyRes = await api.post("/api/auth/verify", { address: addr, signature }).catch(() => null);
+      const token = verifyRes?.data?.token;
+      const user = verifyRes?.data?.user;
+      if (token) {
+        if (user) {
+          writeAuth(user, token);
+        } else {
+          localStorage.setItem(AUTH_TOKEN_KEY, token);
+          notifyAuthChange();
+        }
+        toast.success("Authenticated", "Creator actions unlocked", 2500);
+        return true;
+      }
+      toast.error("Auth failed", "No token returned", 3000);
+      return false;
+    } catch (err) {
+      console.error("Auth failed", err);
+      toast.error("Auth failed", "Signature rejected", 3000);
+      return false;
+    }
+  }
+
+  async function ensureWalletConnected() {
+    if (!window.ethereum) {
+      setShowWalletHelp(true);
+      toast.error("Wallet not detected", "Install MetaMask or use a wallet-enabled browser", 5000);
+      return null;
+    }
+    const ok = await ensureSomniaNetwork();
+    if (!ok) return null;
+    try {
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+      const provider = new ethers.BrowserProvider(window.ethereum, "any");
+      const signer = await provider.getSigner();
+      const addr = await signer.getAddress();
+      const authed = await authenticateWallet(addr, signer);
+      if (!authed) return null;
+      return { provider, signer, address: addr };
+    } catch (err) {
+      console.error("Wallet connect failed", err);
+      toast.error("Connect failed", "See console for details", 4000);
+      return null;
+    }
+  }
+
+  async function ensureStreamerRegistered(signer: ethers.Signer, address: string) {
+    if (!registryAddress || !ethers.isAddress(registryAddress)) {
+      toast.error("Registry missing", "Set VITE_REGISTRY_ADDRESS to enable creator registration.");
+      return false;
+    }
+    try {
+      const registry = new ethers.Contract(
+        registryAddress,
+        [
+          "function isRegistered(address) view returns (bool)",
+          "function registerStreamer(string metadataURI)",
+        ],
+        signer
+      );
+      const registered = await registry.isRegistered(address).catch(() => false);
+      if (registered) return true;
+      toast.info("Registering streamer", "Confirm the on-chain registration.", 2600);
+      const metadata = `petra-stream://streamer/${address}`;
+      const tx = await registry.registerStreamer(metadata);
+      await tx.wait();
+      toast.success("Wallet registered", "Creator profile is now active.", 2600);
+      return true;
+    } catch (err) {
+      console.error("Registration failed", err);
+      toast.error("Registration failed", "Please retry or check your wallet.", 3500);
+      return false;
+    }
+  }
+
+  async function ensureWalletReady() {
+    const wallet = await ensureWalletConnected();
+    if (!wallet) return null;
+    const registered = await ensureStreamerRegistered(wallet.signer, wallet.address);
+    if (!registered) return null;
+    return wallet;
   }
 
   async function ensureStreamKey(): Promise<string | null> {
@@ -191,7 +346,11 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
-  async function startStream(): Promise<boolean> {
+  async function startStream(skipWalletCheck = false): Promise<boolean> {
+    if (!skipWalletCheck) {
+      const walletReady = await ensureWalletReady();
+      if (!walletReady) return false;
+    }
     if (!requireAuth()) return false;
     setLoading(true);
     try {
@@ -248,6 +407,8 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function regenerateKey() {
+    const walletReady = await ensureWalletReady();
+    if (!walletReady) return;
     if (!requireAuth()) return;
     setLoading(true);
     try {
@@ -278,9 +439,11 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function goLiveInBrowser() {
+    const walletReady = await ensureWalletReady();
+    if (!walletReady) return;
     if (!requireAuth()) return;
     if (!isPrepared) {
-      const ok = await startStream();
+      const ok = await startStream(true);
       if (!ok) return;
     }
     const key = await ensureStreamKey();
@@ -313,6 +476,7 @@ export default function CreatePage(): JSX.Element {
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
   const isAuthed = Boolean(getAuthToken());
+  const hasWalletAddress = Boolean(authUser?.address);
   const readinessLabel = isLive ? "Live to viewers" : isPrepared ? "Waiting for video" : "Not started";
   const statusTone = isLive
     ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/30"
@@ -322,8 +486,12 @@ export default function CreatePage(): JSX.Element {
   const primaryCtaLabel = isLive
     ? "End broadcast"
     : supportsBrowserStudio
-      ? "Start broadcast"
-      : "Prepare broadcast";
+      ? hasWalletAddress
+        ? "Start broadcast"
+        : "Connect wallet to go live"
+      : hasWalletAddress
+        ? "Prepare broadcast"
+        : "Connect wallet to go live";
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
   const showStopButton = isPrepared || isLive;
@@ -800,6 +968,13 @@ export default function CreatePage(): JSX.Element {
             onSignedIn={() => setAuthMode(null)}
           />
         )}
+        {showWalletHelp ? (
+          <WalletHelpModal
+            onClose={() => setShowWalletHelp(false)}
+            siteUrl={typeof window !== "undefined" ? window.location.origin : "https://petra-stream.digital"}
+            chainName={chainName}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { MetaController } from './meta/meta.controller';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 import { NotificationsModule } from './notifications/notifications.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     StreamsModule,
     IndexerModule,
     UsersModule,
-    NotificationsModule
+    NotificationsModule,
+    WalletModule
   ],
   controllers: [MetaController, AuthController, HealthController],
   providers: [

@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { AUTH_TOKEN_KEY, clearAuth, notifyAuthChange, writeAuth } from '../lib/auth';
+import WalletHelpModal from './WalletHelpModal';
 
 declare global {
   interface Window { ethereum?: any }
@@ -16,6 +17,7 @@ export default function WalletConnect(): JSX.Element {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showWalletHelp, setShowWalletHelp] = useState(false);
   const mounted = useRef(true);
   const toast = useToast();
 
@@ -182,6 +184,7 @@ export default function WalletConnect(): JSX.Element {
   async function connect() {
     if (!window.ethereum) {
       toast.error('Wallet not detected', 'Install MetaMask or use a wallet-enabled browser', 5000);
+      setShowWalletHelp(true);
       return;
     }
 
@@ -234,19 +237,28 @@ export default function WalletConnect(): JSX.Element {
 
   if (!address) {
     return (
-      <button
-        onClick={connect}
-        className="btn-primary inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg"
-        aria-label="Connect wallet"
-      >
-        {loading ? (
-          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeOpacity="0.16"></circle>
-            <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round"></path>
-          </svg>
+      <>
+        <button
+          onClick={connect}
+          className="btn-primary inline-flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-lg"
+          aria-label="Connect wallet"
+        >
+          {loading ? (
+            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeOpacity="0.16"></circle>
+              <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round"></path>
+            </svg>
+          ) : null}
+          <span>Connect Wallet</span>
+        </button>
+        {showWalletHelp ? (
+          <WalletHelpModal
+            onClose={() => setShowWalletHelp(false)}
+            siteUrl={typeof window !== 'undefined' ? window.location.origin : 'https://petra-stream.digital'}
+            chainName={chainName}
+          />
         ) : null}
-        <span>Connect Wallet</span>
-      </button>
+      </>
     );
   }
 
