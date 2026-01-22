@@ -491,19 +491,64 @@ export default function NFTStudio(): JSX.Element {
             <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-bold">Metadata preview</h3>
-                  <p className="text-xs text-subtle">This JSON is embedded into the on-chain token URI.</p>
+                  <h3 className="text-lg font-bold">Metadata summary</h3>
+                  <p className="text-xs text-subtle">This is what will be embedded into the on-chain token URI.</p>
                 </div>
-                <button
-                  onClick={() => copyValue("Metadata JSON", JSON.stringify(metadata, null, 2))}
-                  className="rounded-full border border-white/10 px-4 py-2 text-xs font-bold hover:bg-white/10 transition"
-                >
-                  Copy JSON
-                </button>
+                <div className="text-[10px] uppercase tracking-[0.3em] text-subtle">
+                  On-chain ready
+                </div>
               </div>
-              <pre className="rounded-2xl bg-black/40 border border-white/10 p-4 text-[11px] leading-relaxed overflow-x-auto">
-                {JSON.stringify(metadata, null, 2)}
-              </pre>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between text-xs text-subtle">
+                  <span className="uppercase tracking-[0.2em]">Name</span>
+                  <span className="text-text font-semibold truncate max-w-[240px]">{previewTitle}</span>
+                </div>
+                <div className="text-xs text-subtle">
+                  <span className="uppercase tracking-[0.2em]">Description</span>
+                  <p className="mt-2 text-text text-sm">{previewSubtitle}</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-subtle">
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <div className="uppercase tracking-[0.2em] text-[10px]">Cover image</div>
+                    <div className="mt-2 text-text text-xs truncate">{coverUrl.trim() || "Auto-generated"}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <div className="uppercase tracking-[0.2em] text-[10px]">Clip URL</div>
+                    <div className="mt-2 text-text text-xs truncate">{mediaUrl.trim() || "Not set"}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {(series.trim() ? [series.trim()] : []).map((item) => (
+                    <span key={item} className="rounded-full border border-white/10 px-3 py-1 text-subtle">
+                      Series: {item}
+                    </span>
+                  ))}
+                  {parseTags(tags).map((tag) => (
+                    <span key={tag} className="rounded-full border border-white/10 px-3 py-1 text-subtle">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                {attributes.some((attr) => attr.trait_type.trim() && attr.value.trim()) ? (
+                  <div className="text-xs text-subtle">
+                    <div className="uppercase tracking-[0.2em] text-[10px]">Attributes</div>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {attributes
+                        .filter((attr) => attr.trait_type.trim() && attr.value.trim())
+                        .map((attr, index) => (
+                          <div
+                            key={`${attr.trait_type}-${attr.value}-${index}`}
+                            className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+                          >
+                            <div className="text-[10px] uppercase tracking-[0.2em]">{attr.trait_type}</div>
+                            <div className="text-xs text-text">{attr.value}</div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </section>
 
