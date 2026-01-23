@@ -10,6 +10,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@walletconnect/ethereum-provider": "^2.12.2",
+    "@walletconnect/modal": "^2.7.0",
     "axios": "^1.5.0",
     "clsx": "^1.2.1",
     "ethers": "^6.15.0",

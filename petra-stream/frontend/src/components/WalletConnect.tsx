@@ -5,6 +5,7 @@ import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { AUTH_TOKEN_KEY, clearAuth, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from '../lib/auth';
 import WalletHelpModal from './WalletHelpModal';
+import { connectWallet, disconnectWallet, WalletConnection } from '../lib/wallet';
 
 declare global {
   interface Window { ethereum?: any }
@@ -15,6 +16,8 @@ export default function WalletConnect(): JSX.Element {
   const [shortAddr, setShortAddr] = useState<string>('');
   const [balance, setBalance] = useState<string | null>(null);
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+  const [rawProvider, setRawProvider] = useState<any>(null);
+  const [walletKind, setWalletKind] = useState<WalletConnection['kind'] | null>(null);
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showWalletHelp, setShowWalletHelp] = useState(false);
@@ -32,45 +35,6 @@ export default function WalletConnect(): JSX.Element {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-
-  async function ensureSomniaNetwork() {
-    if (!window.ethereum) return false;
-    try {
-      const current = await window.ethereum.request({ method: 'eth_chainId' });
-      if (String(current).toLowerCase() === chainIdHex.toLowerCase()) return true;
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: chainIdHex }]
-        });
-        return true;
-      } catch (switchErr: any) {
-        if (switchErr?.code === 4902) {
-          if (!rpcUrl) {
-            toast.error('Missing RPC URL', 'Set VITE_SOMNIA_RPC_URL in frontend env', 4000);
-            return false;
-          }
-          const params: any = {
-            chainId: chainIdHex,
-            chainName,
-            rpcUrls: [rpcUrl],
-            nativeCurrency: { name: chainName, symbol, decimals: 18 }
-          };
-          if (explorerUrl) params.blockExplorerUrls = [explorerUrl];
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [params]
-          });
-          return true;
-        }
-        toast.error('Wrong network', `Please switch to ${chainName}`, 3500);
-        return false;
-      }
-    } catch (err) {
-      console.error('Network check failed', err);
-      return false;
-    }
-  }
 
   async function authenticate(addr: string, signer: ethers.Signer) {
     try {
@@ -108,6 +72,8 @@ export default function WalletConnect(): JSX.Element {
     if (window.ethereum) {
       const p = new ethers.BrowserProvider(window.ethereum, 'any');
       setProvider(p);
+      setRawProvider(window.ethereum);
+      setWalletKind('injected');
 
       // If user already connected before, try to read address (non-throwing)
       (async () => {
@@ -170,35 +136,39 @@ export default function WalletConnect(): JSX.Element {
       clearAuth();
     };
 
-    if (window.ethereum && window.ethereum.on) {
-      window.ethereum.on('accountsChanged', handler);
-      window.ethereum.on('chainChanged', onChainChanged);
+    if (rawProvider && rawProvider.on) {
+      rawProvider.on('accountsChanged', handler);
+      rawProvider.on('chainChanged', onChainChanged);
     }
 
     return () => {
-      if (window.ethereum && window.ethereum.removeListener) {
-        window.ethereum.removeListener('accountsChanged', handler);
-        window.ethereum.removeListener('chainChanged', onChainChanged);
+      if (rawProvider && rawProvider.removeListener) {
+        rawProvider.removeListener('accountsChanged', handler);
+        rawProvider.removeListener('chainChanged', onChainChanged);
       }
     };
-  }, [toast]);
+  }, [toast, rawProvider]);
 
   async function connect() {
-    if (!window.ethereum) {
-      toast.error('Wallet not detected', 'Install MetaMask or use a wallet-enabled browser', 5000);
-      setShowWalletHelp(true);
-      return;
-    }
-
     try {
       setLoading(true);
-      const ok = await ensureSomniaNetwork();
-      if (!ok) return;
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const p = new ethers.BrowserProvider(window.ethereum, 'any');
+      const projectId = String(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '');
+      const connection = await connectWallet({
+        chainId,
+        chainName,
+        rpcUrl,
+        explorerUrl,
+        symbol,
+        projectId,
+        appName: 'Petra Stream',
+        appUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      });
+      const p = connection.provider;
+      const signer = connection.signer;
+      const addr = connection.address;
       setProvider(p);
-      const signer = await p.getSigner();
-      const addr = await signer.getAddress();
+      setRawProvider(connection.rawProvider);
+      setWalletKind(connection.kind);
       if (!mounted.current) return;
       setAddress(addr);
       await authenticate(addr, signer);
@@ -208,9 +178,19 @@ export default function WalletConnect(): JSX.Element {
       const eth = ethers.formatEther(bal);
       setBalance(parseFloat(eth).toFixed(4));
       toast.success('Connected', `${addr.slice(0, 6)}...${addr.slice(-4)}`, 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Wallet connect failed', err);
-      toast.error('Connect failed', 'See console for details', 4000);
+      const message = String(err?.message || '');
+      if (message.includes('missing_project_id')) {
+        toast.error('WalletConnect not configured', 'Set VITE_WALLETCONNECT_PROJECT_ID', 4500);
+      } else if (message.toLowerCase().includes('no_injected_wallet')) {
+        toast.error('Wallet not detected', 'Install MetaMask or use a wallet-enabled browser', 5000);
+        setShowWalletHelp(true);
+      } else if (message.toLowerCase().includes('wrong_network')) {
+        toast.error('Wrong network', `Please switch to ${chainName}`, 3500);
+      } else {
+        toast.error('Connect failed', 'See console for details', 4000);
+      }
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -220,8 +200,11 @@ export default function WalletConnect(): JSX.Element {
     setAddress(null);
     setBalance(null);
     setProvider(null);
+    setRawProvider(null);
+    setWalletKind(null);
     setMenuOpen(false);
     clearAuth();
+    void disconnectWallet();
     toast.info('Disconnected', undefined, 2500);
   }
 

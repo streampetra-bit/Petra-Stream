@@ -10,6 +10,7 @@ import LocalRecorder from "../components/LocalRecorder";
 import SignInModal from "../components/SignInModal";
 import WalletHelpModal from "../components/WalletHelpModal";
 import { AUTH_TOKEN_KEY, getAuthToken, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
+import { connectWallet } from "../lib/wallet";
 
 declare global {
   interface Window {
@@ -203,24 +204,37 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function ensureWalletConnected() {
-    if (!window.ethereum) {
-      setShowWalletHelp(true);
-      toast.error("Wallet not detected", "Install MetaMask or use a wallet-enabled browser", 5000);
-      return null;
-    }
-    const ok = await ensureSomniaNetwork();
-    if (!ok) return null;
     try {
-      await window.ethereum.request({ method: "eth_requestAccounts" });
-      const provider = new ethers.BrowserProvider(window.ethereum, "any");
-      const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
+      const projectId = String(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "");
+      const connection = await connectWallet({
+        chainId,
+        chainName,
+        rpcUrl,
+        explorerUrl,
+        symbol,
+        projectId,
+        appName: "Petra Stream",
+        appUrl: typeof window !== "undefined" ? window.location.origin : "",
+      });
+      const provider = connection.provider;
+      const signer = connection.signer;
+      const addr = connection.address;
       const authed = await authenticateWallet(addr, signer);
       if (!authed) return null;
       return { provider, signer, address: addr };
-    } catch (err) {
+    } catch (err: any) {
       console.error("Wallet connect failed", err);
-      toast.error("Connect failed", "See console for details", 4000);
+      const message = String(err?.message || "");
+      if (message.includes("missing_project_id")) {
+        toast.error("WalletConnect not configured", "Set VITE_WALLETCONNECT_PROJECT_ID", 4500);
+      } else if (message.toLowerCase().includes("no_injected_wallet")) {
+        setShowWalletHelp(true);
+        toast.error("Wallet not detected", "Install MetaMask or use a wallet-enabled browser", 5000);
+      } else if (message.toLowerCase().includes("wrong_network")) {
+        toast.error("Wrong network", `Please switch to ${chainName}`, 3500);
+      } else {
+        toast.error("Connect failed", "See console for details", 4000);
+      }
       return null;
     }
   }
