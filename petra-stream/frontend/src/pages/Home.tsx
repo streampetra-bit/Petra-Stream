@@ -210,9 +210,11 @@ export default function Home(): JSX.Element {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
-    (async () => {
+    let active = true;
+    const fetchStreams = async () => {
       try {
         const res = await api.get("/api/streams/active").catch(() => null);
+        if (!active) return;
         if (res && Array.isArray(res.data) && res.data.length > 0) {
           setStreams(res.data);
           setUsingMock(false);
@@ -221,13 +223,21 @@ export default function Home(): JSX.Element {
           setUsingMock(true);
         }
       } catch (err) {
+        if (!active) return;
         console.error("Failed to fetch streams, using mock data", err);
         setStreams(MOCK_STREAMS);
         setUsingMock(true);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
-    })();
+    };
+
+    void fetchStreams();
+    const interval = window.setInterval(fetchStreams, 12000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   const heroStream = streams[0];

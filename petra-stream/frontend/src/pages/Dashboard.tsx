@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import api from "../lib/api";
-import { readAuthUser } from "../lib/auth";
+import { getAuthToken, readAuthUser } from "../lib/auth";
 import WithdrawModal from "../components/WithdrawModal";
 
 type NavItem = {
@@ -33,6 +33,24 @@ type WalletSnapshot = {
   address?: string;
   balance?: string;
   symbol?: string;
+};
+
+type DashboardNftItem = {
+  title: string;
+  rarity: string;
+  price: string;
+  status: string;
+  tag: string;
+  action: string;
+  image: string;
+};
+
+type DashboardActivityItem = {
+  id: string;
+  title: string;
+  time: string;
+  tone: string;
+  icon: React.ReactNode;
 };
 
 type CreatorStats = {
@@ -148,7 +166,7 @@ const buildBaseStats = (stats: { earnings: number; viewers: number }): StatItem[
 
 const RETENTION_BARS = [0.5, 0.75, 0.65, 1, 0.75, 0.5, 0.66];
 
-const NFT_ITEMS = [
+const FALLBACK_NFT_ITEMS: DashboardNftItem[] = [
   {
     title: "360 No-Scope Clutch",
     rarity: "Legendary",
@@ -181,8 +199,9 @@ const NFT_ITEMS = [
   },
 ];
 
-const ACTIVITY = [
+const FALLBACK_ACTIVITY: DashboardActivityItem[] = [
   {
+    id: "a-1",
     title: "CryptoWhale sent 500 bits",
     time: "2 minutes ago",
     tone: "text-primary",
@@ -193,6 +212,7 @@ const ACTIVITY = [
     ),
   },
   {
+    id: "a-2",
     title: "NFTHunter bought Clip #402",
     time: "12 minutes ago",
     tone: "text-pink-400",
@@ -203,6 +223,7 @@ const ACTIVITY = [
     ),
   },
   {
+    id: "a-3",
     title: "SolanaKing subscribed (Tier 3)",
     time: "24 minutes ago",
     tone: "text-blue-400",
@@ -258,6 +279,18 @@ const formatWalletBalance = (value?: string) => {
   return numeric.toLocaleString(undefined, { maximumFractionDigits: 4 });
 };
 
+const formatRelativeTime = (timestamp?: number) => {
+  if (!timestamp) return "Just now";
+  const diff = Date.now() - timestamp;
+  if (diff < 60_000) return "Just now";
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 export default function Dashboard(): JSX.Element {
   const initialAuthUser = readAuthUser();
   const [authUser, setAuthUser] = useState(initialAuthUser);
@@ -269,6 +302,9 @@ export default function Dashboard(): JSX.Element {
   const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [creatorStats, setCreatorStats] = useState<CreatorStats | null>(null);
+  const [nftItems, setNftItems] = useState<DashboardNftItem[]>(FALLBACK_NFT_ITEMS);
+  const [activityItems, setActivityItems] = useState<DashboardActivityItem[]>(FALLBACK_ACTIVITY);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     const refresh = () => setAuthUser(readAuthUser());
@@ -324,6 +360,107 @@ export default function Dashboard(): JSX.Element {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      setActivityItems(FALLBACK_ACTIVITY);
+      return;
+    }
+    let active = true;
+    setActivityLoading(true);
+    api
+      .get("/api/notifications/me?limit=6")
+      .then((res) => {
+        if (!active) return;
+        const raw = res?.data?.data;
+        if (!Array.isArray(raw) || raw.length === 0) {
+          setActivityItems(FALLBACK_ACTIVITY);
+          return;
+        }
+        const mapped = raw.map((item: any, index: number) => {
+          const kind = String(item?.kind || "system");
+          const isTip = kind === "tip";
+          const isStream = kind === "stream";
+          const tone = isTip ? "text-primary" : isStream ? "text-pink-400" : "text-blue-400";
+          const icon = isTip ? (
+            <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21s-7-4.35-7-10a4 4 0 017-2 4 4 0 017 2c0 5.65-7 10-7 10z" />
+            </svg>
+          ) : isStream ? (
+            <svg className="h-4 w-4 text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h18v4H3zM5 7v14h14V7" />
+            </svg>
+          ) : (
+            <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+              <circle cx="8.5" cy="7" r="4" />
+            </svg>
+          );
+          return {
+            id: String(item?.id ?? `activity-${index}`),
+            title: String(item?.title ?? "Activity"),
+            time: formatRelativeTime(Number(item?.ts ?? Date.now())),
+            tone,
+            icon,
+          };
+        });
+        setActivityItems(mapped);
+      })
+      .catch(() => {
+        if (active) setActivityItems(FALLBACK_ACTIVITY);
+      })
+      .finally(() => {
+        if (active) setActivityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const identity = authUser?.address || authUser?.username || authUser?.id;
+    if (!identity) {
+      setNftItems(FALLBACK_NFT_ITEMS);
+      return;
+    }
+    let active = true;
+    api
+      .get(`/api/nfts?creator=${encodeURIComponent(identity)}&limit=3`)
+      .then((res) => {
+        if (!active) return;
+        const raw = Array.isArray(res?.data) ? res.data : res?.data?.data;
+        if (!Array.isArray(raw) || raw.length === 0) {
+          setNftItems(FALLBACK_NFT_ITEMS);
+          return;
+        }
+        const fallbackImages = FALLBACK_NFT_ITEMS.map((item) => item.image);
+        const mapped = raw.slice(0, 3).map((nft: any, index: number) => {
+          const minted = Boolean(nft?.tokenId);
+          const image =
+            String(nft?.coverUrl || nft?.mediaUrl || "") ||
+            fallbackImages[index % fallbackImages.length];
+          return {
+            title: String(nft?.title || `Clip #${index + 1}`),
+            rarity: minted ? "Minted" : "On-chain",
+            price: minted ? "Not listed" : "In progress",
+            status: minted ? "View details" : "View details",
+            tag: minted ? "text-primary" : "text-subtle",
+            action: minted
+              ? "bg-primary/10 hover:bg-primary text-primary hover:text-bg"
+              : "bg-white/5 hover:bg-white/10 text-text border border-white/10",
+            image,
+          };
+        });
+        setNftItems(mapped);
+      })
+      .catch(() => {
+        if (active) setNftItems(FALLBACK_NFT_ITEMS);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authUser]);
 
   useEffect(() => {
     if (!authUser) {
@@ -636,10 +773,10 @@ export default function Dashboard(): JSX.Element {
                 </Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {NFT_ITEMS.map((item) => (
-                  <div key={item.title} className="glass-card rounded-xl overflow-hidden border border-white/10 hover:border-primary/40 transition">
-                    <div className="aspect-video relative overflow-hidden">
-                      <div
+                  {nftItems.map((item) => (
+                    <div key={item.title} className="glass-card rounded-xl overflow-hidden border border-white/10 hover:border-primary/40 transition">
+                      <div className="aspect-video relative overflow-hidden">
+                        <div
                         className="absolute inset-0 bg-center bg-cover transition-transform duration-500 hover:scale-110"
                         style={{ backgroundImage: `url(${item.image})` }}
                       />
@@ -706,18 +843,22 @@ export default function Dashboard(): JSX.Element {
           <div className="space-y-4">
             <h4 className="text-sm font-bold uppercase tracking-[0.3em] text-subtle">Live activity</h4>
             <div className="space-y-6">
-              {ACTIVITY.map((item) => (
-                <div key={item.title} className="flex gap-4 relative">
-                  <div className="absolute left-4 top-10 bottom-0 w-px bg-white/10" />
-                  <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${item.tone} border-current bg-white/5`}>
-                    {item.icon}
+              {activityLoading ? (
+                <div className="text-xs text-subtle">Loading activity...</div>
+              ) : (
+                activityItems.map((item) => (
+                  <div key={item.id} className="flex gap-4 relative">
+                    <div className="absolute left-4 top-10 bottom-0 w-px bg-white/10" />
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${item.tone} border-current bg-white/5`}>
+                      {item.icon}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm">{item.title}</p>
+                      <p className="text-xs text-subtle">{item.time}</p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-sm">{item.title}</p>
-                    <p className="text-xs text-subtle">{item.time}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

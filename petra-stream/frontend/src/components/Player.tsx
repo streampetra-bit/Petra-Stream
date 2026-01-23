@@ -27,6 +27,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const manifestRetryRef = useRef<number | null>(null);
+  const recoveryAttemptsRef = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [muted, setMuted] = useState(startMuted || autoPlay);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
       window.clearTimeout(manifestRetryRef.current);
       manifestRetryRef.current = null;
     }
+    recoveryAttemptsRef.current = 0;
 
     if (!src) {
       v.removeAttribute('src');
@@ -89,14 +91,23 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
         });
         hlsRef.current = hls;
         hls.attachMedia(v);
-        const scheduleManifestRetry = () => {
+        const scheduleManifestRetry = (delay = 2000) => {
           if (manifestRetryRef.current) return;
           manifestRetryRef.current = window.setTimeout(() => {
             if (!hlsRef.current) return;
             hlsRef.current.loadSource(src);
             hlsRef.current.startLoad();
             manifestRetryRef.current = null;
-          }, 2000);
+          }, delay);
+        };
+        const tryResume = () => {
+          if (!hlsRef.current) return;
+          hlsRef.current.startLoad();
+          if (autoPlay) {
+            void v.play().catch(() => {
+              // ignore autoplay errors
+            });
+          }
         };
         hls.on(Hls.Events.MEDIA_ATTACHED, () => {
           hls.loadSource(src);
@@ -111,8 +122,27 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           const details = data?.details || data?.type;
+          if (details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+            setError('Buffering...');
+            scheduleManifestRetry(1500);
+            tryResume();
+            return;
+          }
           if (details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR) {
             setError('Waiting for live');
+            scheduleManifestRetry();
+            return;
+          }
+          if (
+            details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
+            details === Hls.ErrorDetails.LEVEL_LOAD_ERROR ||
+            details === Hls.ErrorDetails.LEVEL_LOAD_TIMEOUT ||
+            details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+            details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
+            details === Hls.ErrorDetails.KEY_LOAD_ERROR ||
+            details === Hls.ErrorDetails.KEY_LOAD_TIMEOUT
+          ) {
+            setError('Reconnecting...');
             scheduleManifestRetry();
             return;
           }
@@ -123,7 +153,12 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
                 scheduleManifestRetry();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
+                if (recoveryAttemptsRef.current < 3) {
+                  recoveryAttemptsRef.current += 1;
+                  hls.recoverMediaError();
+                } else {
+                  hls.destroy();
+                }
                 break;
               default:
                 hls.destroy();

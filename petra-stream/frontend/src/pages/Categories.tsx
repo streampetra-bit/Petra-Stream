@@ -60,7 +60,7 @@ const CATEGORY_STYLES: Record<
   },
 };
 
-const TRENDING_TAGS = ["chill", "onchain", "live-coding", "music", "nft"];
+const FALLBACK_TAGS = ["chill", "onchain", "live-coding", "music", "nft"];
 
 function CategoryIcon({ id }: { id: string }) {
   switch (id) {
@@ -116,6 +116,7 @@ function CategoryIcon({ id }: { id: string }) {
 export default function Categories(): JSX.Element {
   const [categories, setCategories] = useState<{ id: string; label: string; description?: string }[]>(FALLBACK);
   const [loading, setLoading] = useState(true);
+  const [tags, setTags] = useState(FALLBACK_TAGS);
 
   useEffect(() => {
     (async () => {
@@ -128,6 +129,17 @@ export default function Categories(): JSX.Element {
         // ignore - fallback stays
       } finally {
         setLoading(false);
+      }
+    })();
+
+    (async () => {
+      try {
+        const tagRes = await api.get("/api/trending").catch(() => null);
+        if (tagRes?.data?.data && Array.isArray(tagRes.data.data)) {
+          setTags(tagRes.data.data);
+        }
+      } catch {
+        // ignore - fallback stays
       }
     })();
   }, []);
@@ -164,7 +176,7 @@ export default function Categories(): JSX.Element {
           Browse curated live streams across the Web3 ecosystem.
         </p>
         <div className="flex flex-wrap gap-2">
-          {TRENDING_TAGS.map((tag) => (
+          {tags.map((tag) => (
             <Link
               key={tag}
               to={`/explore?tag=${encodeURIComponent(tag)}`}
