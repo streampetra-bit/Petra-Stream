@@ -411,7 +411,7 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
-  async function startStream(skipWalletCheck = false): Promise<boolean> {
+  async function startStream(skipWalletCheck = false, overrideKey?: string): Promise<boolean> {
     if (!skipWalletCheck) {
       const ok = await ensureWalletIfRequired();
       if (!ok) return false;
@@ -419,7 +419,7 @@ export default function CreatePage(): JSX.Element {
     if (!requireAuth()) return false;
     setLoading(true);
     try {
-      const key = await ensureStreamKey();
+      const key = overrideKey ?? await ensureStreamKey();
       if (!key) return false;
       const finalTitle = title.trim() || "Live Stream";
       if (!title.trim()) setTitle(finalTitle);
@@ -507,11 +507,10 @@ export default function CreatePage(): JSX.Element {
     const ok = await ensureWalletIfRequired();
     if (!ok) return;
     if (!requireAuth()) return;
-    if (!isPrepared) {
-      const ok = await startStream(true);
-      if (!ok) return;
-    }
     const key = await ensureStreamKey();
+    if (!key) return;
+    const prepared = await startStream(true, key);
+    if (!prepared) return;
     if (!key) return;
     const publishUrl = buildWebrtcPublishUrl(key);
     if (!publishUrl) {
