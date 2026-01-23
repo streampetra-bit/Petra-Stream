@@ -13,6 +13,7 @@ model Stream {
   streamId  String   @unique
   title     String?
   streamer  String
+  streamKey String?  @unique
   status    String   @default("offline")
   createdAt DateTime @default(now())
 }

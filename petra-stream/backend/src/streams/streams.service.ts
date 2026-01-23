@@ -35,21 +35,34 @@ export class StreamsService {
     return streamer || process.env.DEFAULT_STREAMER || 'demo-streamer';
   }
 
-  async findActive(): Promise<StreamMeta[]> {
-    // prefer in-memory, else try mongo, then prisma
+  async findActive(limit?: number): Promise<StreamMeta[]> {
+    // merge sources to avoid missing active streams across instances
     const cached = Array.from(this.streams.values()).filter(s => s.status === 'online');
-    if (cached.length) return cached;
-
     const mongo = await mongoListActiveStreams();
-    if (mongo.length) return mongo.map(m => this.mapStream(m));
-
+    let prismaRows: any[] = [];
     try {
-      const rows = await prisma.stream.findMany({ where: { status: 'online' } });
-      return rows.map(r => this.mapStream({ ...r, streamId: r.streamId ?? r.streamer }));
+      prismaRows = await prisma.stream.findMany({ where: { status: 'online' } });
     } catch (err) {
-      this.logger.warn('findActive prisma failed; returning empty', err as any);
-      return [];
+      this.logger.warn('findActive prisma failed; continuing with cache/mongo', err as any);
     }
+
+    const merged = new Map<string, StreamMeta>();
+    const add = (stream?: StreamMeta | null) => {
+      if (!stream) return;
+      const key = (stream.streamer || stream.id || '').toLowerCase();
+      if (!key) return;
+      merged.set(key, stream);
+    };
+
+    prismaRows.forEach(r => add(this.mapStream({ ...r, streamId: r.streamId ?? r.streamer })));
+    mongo.forEach(m => add(this.mapStream(m)));
+    cached.forEach(s => add(s));
+
+    const result = Array.from(merged.values());
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+      return result.slice(0, limit);
+    }
+    return result;
   }
 
   async findById(id: string): Promise<StreamMeta | null> {
@@ -79,6 +92,16 @@ export class StreamsService {
     const mongo = await mongoFindStreamByKey(streamKey);
     if (mongo) return this.mapStream(mongo);
 
+    try {
+      const row = await prisma.stream.findUnique({ where: { streamKey } });
+      if (row) {
+        const mapped = this.mapStream({ ...row, streamId: row.streamId ?? row.streamer });
+        this.streams.set(mapped.streamer, mapped);
+        return mapped;
+      }
+    } catch (err) {
+      this.logger.warn('findByStreamKey prisma failed', err as any);
+    }
     return null;
   }
 
@@ -121,6 +144,21 @@ export class StreamsService {
     const existing = (await this.findById(s)) ?? { id: s, streamer: s, status: 'offline' as const };
     const next = { ...existing, streamKey: key };
     this.streams.set(s, next);
+    try {
+      await prisma.stream.upsert({
+        where: { streamId: s },
+        update: { streamKey: key },
+        create: {
+          streamId: s,
+          streamer: s,
+          title: existing.title ?? 'Untitled',
+          status: existing.status ?? 'offline',
+          streamKey: key
+        }
+      });
+    } catch (err) {
+      this.logger.warn('generateKey prisma upsert failed', err as any);
+    }
     await this.persistStream(next);
     return key;
   }
@@ -146,8 +184,8 @@ export class StreamsService {
     try {
       await prisma.stream.upsert({
         where: { streamId: streamer },
-        update: { title: payload.title, streamer, status: 'online' },
-        create: { streamId: streamer, streamer, title: payload.title ?? 'Untitled', status: 'online' }
+        update: { title: payload.title, streamer, status: 'online', streamKey },
+        create: { streamId: streamer, streamer, title: payload.title ?? 'Untitled', status: 'online', streamKey }
       });
     } catch (err) {
       this.logger.warn('startStream prisma upsert failed', err as any);
@@ -179,8 +217,14 @@ export class StreamsService {
     try {
       await prisma.stream.upsert({
         where: { streamId: id },
-        update: { title: next.title, streamer: id, status: next.status ?? 'offline' },
-        create: { streamId: id, streamer: id, title: next.title ?? 'Untitled', status: next.status ?? 'offline' }
+        update: { title: next.title, streamer: id, status: next.status ?? 'offline', streamKey: next.streamKey },
+        create: {
+          streamId: id,
+          streamer: id,
+          title: next.title ?? 'Untitled',
+          status: next.status ?? 'offline',
+          streamKey: next.streamKey
+        }
       });
     } catch (err) {
       this.logger.warn('updateMeta prisma failed', err as any);

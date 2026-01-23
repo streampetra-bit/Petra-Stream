@@ -12,8 +12,10 @@ export class StreamsController {
   ) {}
 
   @Get('active')
-  findActive() {
-    return this.streams.findActive();
+  findActive(@Query('limit') limit?: string) {
+    const take = Number(limit);
+    const bounded = Number.isFinite(take) && take > 0 ? take : 20;
+    return this.streams.findActive(bounded);
   }
 
   @Get('related')
@@ -29,8 +31,10 @@ export class StreamsController {
   }
 
   @Get('top')
-  top() {
-    return this.streams.findActive();
+  top(@Query('limit') limit?: string) {
+    const take = Number(limit);
+    const bounded = Number.isFinite(take) && take > 0 ? take : 20;
+    return this.streams.findActive(bounded);
   }
 
   @Post('playback/check')

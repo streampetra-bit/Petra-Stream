@@ -63,33 +63,54 @@ export default function CreatePage(): JSX.Element {
   const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || "SOM");
   const uptimeTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    // Load existing stream state if present
-    (async () => {
-      try {
-        if (!getAuthToken()) return;
-        const res = await api.get("/api/streams/me").catch(() => null);
-        if (res?.data) {
-          setTitle(res.data.title ?? "");
-          setDescription(res.data.description ?? "");
-          setStreamKey(res.data.streamKey ?? null);
-          const status = String(res.data.status ?? "");
-          setIsLive(status === "online");
-          setPlaybackUrl(res.data.playbackUrl ?? "");
-          setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
-        }
-      } catch {
-        // ignore
-      }
-    })();
+  function resetStreamState() {
+    setTitle("");
+    setDescription("");
+    setStreamKey(null);
+    setIsLive(false);
+    setPlaybackUrl("");
+    setIsPrepared(false);
+    setShowPublisher(false);
+    setLastPlaybackCheck(null);
+    setStats({ viewers: 0, tips: 0, uptimeSec: 0 });
+  }
 
+  async function loadStreamState(resetOnMissing = false) {
+    if (!getAuthToken()) {
+      if (resetOnMissing) resetStreamState();
+      return;
+    }
+    try {
+      const res = await api.get("/api/streams/me").catch(() => null);
+      if (res?.data) {
+        setTitle(res.data.title ?? "");
+        setDescription(res.data.description ?? "");
+        setStreamKey(res.data.streamKey ?? null);
+        const status = String(res.data.status ?? "");
+        setIsLive(status === "online");
+        setPlaybackUrl(res.data.playbackUrl ?? "");
+        setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    if (resetOnMissing) resetStreamState();
+  }
+
+  useEffect(() => {
+    void loadStreamState(true);
     return () => {
       if (uptimeTimer.current) window.clearInterval(uptimeTimer.current);
     };
   }, []);
 
   useEffect(() => {
-    const handler = () => setAuthUser(readAuthUser());
+    const handler = () => {
+      setAuthUser(readAuthUser());
+      setShowPublisher(false);
+      void loadStreamState(true);
+    };
     window.addEventListener("auth-changed", handler);
     return () => window.removeEventListener("auth-changed", handler);
   }, []);
@@ -366,7 +387,13 @@ export default function CreatePage(): JSX.Element {
     try {
       const url = new URL(base);
       const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
-      url.pathname = `${basePath}/${key}/publish`;
+      const normalizedPath = basePath.toLowerCase();
+      const usesWhip =
+        normalizedPath.endsWith("/whip") ||
+        normalizedPath.endsWith("/whep") ||
+        normalizedPath.includes("/whip/");
+      const safeKey = encodeURIComponent(key);
+      url.pathname = usesWhip ? `${basePath}/${safeKey}` : `${basePath}/${safeKey}/publish`;
 
       const params = url.searchParams;
       if (!params.has("video-codec")) params.set("video-codec", "h264/90000");
@@ -489,6 +516,10 @@ export default function CreatePage(): JSX.Element {
     const publishUrl = buildWebrtcPublishUrl(key);
     if (!publishUrl) {
       toast.error("WebRTC publish URL not configured", "Set VITE_WEBRTC_PUBLISH_URL or VITE_HLS_BASE_URL");
+      return;
+    }
+    if (window.location.protocol === "https:" && publishUrl.startsWith("http://")) {
+      toast.error("Insecure publish URL", "Use an https WebRTC publish endpoint for live sites.");
       return;
     }
     setShowPublisher(true);
@@ -697,8 +728,14 @@ export default function CreatePage(): JSX.Element {
                 {supportsBrowserStudio ? (
                   <button
                     className="px-3 py-2 rounded-full border border-white/10 text-xs"
-                    onClick={() => setShowPublisher((s) => !s)}
-                    disabled={!webrtcPublishUrl}
+                    onClick={() => {
+                      if (showPublisher) {
+                        setShowPublisher(false);
+                        return;
+                      }
+                      void goLiveInBrowser();
+                    }}
+                    disabled={!supportsBrowserStudio || loading}
                   >
                     {showPublisher ? "Hide studio" : "Show studio"}
                   </button>

@@ -8,6 +8,7 @@ type Stream = {
   title?: string;
   description?: string;
   thumbnail?: string; // url
+  viewerCount?: number;
   viewers?: number;
   tags?: string[];
   avatar?: string;
@@ -28,11 +29,13 @@ export default function StreamCard({ stream }: { stream: Stream }) {
     title = 'Untitled Stream',
     description = '',
     thumbnail,
-    viewers = 0,
+    viewerCount,
+    viewers,
     tags = [],
     avatar,
     isLive = true,
   } = stream || {};
+  const totalViewers = viewerCount ?? viewers ?? 0;
 
   const route = `/stream/${encodeURIComponent(streamer || id || '')}`;
 
@@ -74,7 +77,7 @@ export default function StreamCard({ stream }: { stream: Stream }) {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A2 2 0 0122 9.618v4.764a2 2 0 01-2.447 1.894L15 14M4 6v12a2 2 0 002 2h10" />
             </svg>
-            <span className="font-medium">{formatNumber(viewers)}</span>
+            <span className="font-medium">{formatNumber(totalViewers)}</span>
           </div>
 
           {/* play icon on hover (subtle) */}
