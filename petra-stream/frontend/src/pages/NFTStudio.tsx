@@ -505,7 +505,7 @@ export default function NFTStudio(): JSX.Element {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold">Metadata summary</h3>
-                  <p className="text-xs text-subtle">This is what will be embedded into the on-chain token URI.</p>
+                  <p className="text-xs text-subtle">This is the public description and details viewers will see with your NFT.</p>
                 </div>
                 <div className="text-[10px] uppercase tracking-[0.3em] text-subtle">
                   On-chain ready
@@ -612,7 +612,7 @@ export default function NFTStudio(): JSX.Element {
                 {minting ? "Minting..." : "Mint highlight"}
               </button>
               <div className="text-[10px] text-subtle">
-                Minting uses your wallet and stores metadata directly on-chain. Set VITE_CLIP_NFT_ADDRESS to enable.
+                Minting uses your wallet and makes your clip available to collectors.
               </div>
             </div>
 

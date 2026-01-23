@@ -35,6 +35,12 @@ type WalletSnapshot = {
   symbol?: string;
 };
 
+type CreatorStats = {
+  viewers?: number;
+  tips?: number;
+  earnings?: number;
+};
+
 const NAV_ITEMS: NavItem[] = [
   {
     label: "Dashboard",
@@ -95,14 +101,31 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const BASE_STATS: StatItem[] = [
+const MOCK_CREATOR_STATS = {
+  earnings: 452.85,
+  viewers: 12482,
+  tips: 3,
+};
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatSignedCount = (value: number) => {
+  const formatted = Math.abs(value).toLocaleString();
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+};
+
+const buildBaseStats = (stats: { earnings: number; viewers: number }): StatItem[] => [
   {
-    label: "Total earnings (SOL)",
-    value: "452.85",
+    label: "Total earnings (SOM)",
+    value: formatCurrency(stats.earnings),
     delta: "+15.2%",
     accent: "text-primary",
     glow: "bg-primary/10",
-    valueSuffix: "SOL",
+    valueSuffix: "SOM",
     icon: (
       <svg className="h-6 w-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-2.5 0-4 1-4 2.5S9.5 13 12 13s4 1 4 2.5S14.5 18 12 18m0-10V6m0 12v-2" />
@@ -111,7 +134,7 @@ const BASE_STATS: StatItem[] = [
   },
   {
     label: "Viewer growth",
-    value: "+12,482",
+    value: formatSignedCount(stats.viewers),
     delta: "+2.1%",
     accent: "text-pink-400",
     glow: "bg-pink-500/10",
@@ -129,7 +152,7 @@ const NFT_ITEMS = [
   {
     title: "360 No-Scope Clutch",
     rarity: "Legendary",
-    price: "2.45 SOL",
+    price: "2.45 SOM",
     status: "List on market",
     tag: "text-pink-400",
     action: "bg-primary hover:bg-primary/90 text-bg",
@@ -139,8 +162,8 @@ const NFT_ITEMS = [
   {
     title: "12 Kill Streak - Solo",
     rarity: "Rare",
-    price: "0.82 SOL",
-    status: "Listed for 1.2 SOL",
+    price: "0.82 SOM",
+    status: "Listed for 1.2 SOM",
     tag: "text-blue-400",
     action: "bg-white/5 hover:bg-white/10 text-text border border-white/10",
     image:
@@ -149,7 +172,7 @@ const NFT_ITEMS = [
   {
     title: "Perfect Timing Combo",
     rarity: "Common",
-    price: "0.15 SOL",
+    price: "0.15 SOM",
     status: "List on market",
     tag: "text-emerald-400",
     action: "bg-primary hover:bg-primary/90 text-bg",
@@ -245,6 +268,7 @@ export default function Dashboard(): JSX.Element {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [creatorStats, setCreatorStats] = useState<CreatorStats | null>(null);
 
   useEffect(() => {
     const refresh = () => setAuthUser(readAuthUser());
@@ -274,6 +298,32 @@ export default function Dashboard(): JSX.Element {
       active = false;
     };
   }, [authUser]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get("/api/creator/stats")
+      .then((res) => {
+        if (!active) return;
+        const payload = res?.data?.data ?? res?.data;
+        if (!payload || typeof payload !== "object") {
+          setCreatorStats(null);
+          return;
+        }
+        setCreatorStats({
+          viewers: typeof payload.viewers === "number" ? payload.viewers : undefined,
+          tips: typeof payload.tips === "number" ? payload.tips : undefined,
+          earnings: typeof payload.earnings === "number" ? payload.earnings : undefined,
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setCreatorStats(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!authUser) {
@@ -308,14 +358,18 @@ export default function Dashboard(): JSX.Element {
   }, [authUser]);
 
   const stats = useMemo<StatItem[]>(
-    () => [
-      ...BASE_STATS,
-      {
-        ...FOLLOWER_STAT,
-        value: formatCount(profile.followers),
-      },
-    ],
-    [profile.followers]
+    () => {
+      const earnings = creatorStats?.earnings ?? MOCK_CREATOR_STATS.earnings;
+      const viewers = creatorStats?.viewers ?? MOCK_CREATOR_STATS.viewers;
+      return [
+        ...buildBaseStats({ earnings, viewers }),
+        {
+          ...FOLLOWER_STAT,
+          value: formatCount(profile.followers),
+        },
+      ];
+    },
+    [creatorStats, profile.followers]
   );
   const walletAddress = walletSnapshot?.address || authUser?.address;
 
@@ -641,7 +695,7 @@ export default function Dashboard(): JSX.Element {
                   Network secure
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-subtle uppercase tracking-[0.3em] font-bold text-[10px]">
-                  Gas: 0.0002 SOL
+                  Gas: 0.0002 SOM
                 </div>
               </div>
             </footer>
