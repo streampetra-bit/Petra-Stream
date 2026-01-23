@@ -35,6 +35,33 @@ export function updateAuthUser(user: AuthUser) {
   notifyAuthChange();
 }
 
+function isAddressLike(value?: string) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!/^0x[a-fA-F0-9]+$/.test(trimmed)) return false;
+  return trimmed.length >= 8;
+}
+
+function preferText(next?: string, current?: string) {
+  if (next && next.trim()) return next;
+  return current;
+}
+
+export function mergeAuthUser(current: AuthUser | null, next: AuthUser): AuthUser {
+  if (!current) return next;
+  const nextDisplay = isAddressLike(next.displayName) ? undefined : next.displayName;
+  const currentDisplay = isAddressLike(current.displayName) ? undefined : current.displayName;
+  return {
+    ...current,
+    ...next,
+    id: preferText(next.id, current.id),
+    username: preferText(next.username, current.username),
+    email: preferText(next.email, current.email),
+    address: preferText(next.address, current.address),
+    displayName: preferText(nextDisplay, currentDisplay) || preferText(next.displayName, current.displayName),
+  };
+}
+
 export function clearAuth() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_USER_KEY);

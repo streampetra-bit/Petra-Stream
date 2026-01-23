@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { ethers } from 'ethers';
 import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
-import { AUTH_TOKEN_KEY, clearAuth, notifyAuthChange, readAuthUser, writeAuth } from '../lib/auth';
+import { AUTH_TOKEN_KEY, clearAuth, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from '../lib/auth';
 import WalletHelpModal from './WalletHelpModal';
 
 declare global {
@@ -87,7 +87,7 @@ export default function WalletConnect(): JSX.Element {
       const user = verifyRes?.data?.user;
       if (token) {
         if (user) {
-          const merged = currentUser ? { ...currentUser, ...user } : user;
+          const merged = mergeAuthUser(currentUser, user);
           writeAuth(merged, token);
         } else {
           localStorage.setItem(AUTH_TOKEN_KEY, token);

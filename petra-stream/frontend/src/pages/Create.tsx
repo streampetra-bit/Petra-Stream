@@ -9,7 +9,7 @@ import Player from "../components/Player";
 import LocalRecorder from "../components/LocalRecorder";
 import SignInModal from "../components/SignInModal";
 import WalletHelpModal from "../components/WalletHelpModal";
-import { AUTH_TOKEN_KEY, getAuthToken, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
+import { AUTH_TOKEN_KEY, getAuthToken, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
 
 declare global {
   interface Window {
@@ -52,6 +52,8 @@ export default function CreatePage(): JSX.Element {
   const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
   const requireRegistry = String(import.meta.env.VITE_REQUIRE_STREAMER_REGISTRY || "false").toLowerCase() === "true";
+  const requireWallet =
+    String(import.meta.env.VITE_REQUIRE_WALLET || "false").toLowerCase() === "true" || requireRegistry;
   const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
   const chainIdHex = `0x${chainId.toString(16)}`;
   const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || "Somnia Testnet");
@@ -182,7 +184,7 @@ export default function CreatePage(): JSX.Element {
       const user = verifyRes?.data?.user;
       if (token) {
         if (user) {
-          const merged = currentUser ? { ...currentUser, ...user } : user;
+          const merged = mergeAuthUser(currentUser, user);
           writeAuth(merged, token);
         } else {
           localStorage.setItem(AUTH_TOKEN_KEY, token);
@@ -260,6 +262,12 @@ export default function CreatePage(): JSX.Element {
     const registered = await ensureStreamerRegistered(wallet.signer, wallet.address, requireRegistry);
     if (!registered) return null;
     return wallet;
+  }
+
+  async function ensureWalletIfRequired() {
+    if (!requireWallet) return true;
+    const wallet = await ensureWalletReady();
+    return Boolean(wallet);
   }
 
   async function registerStreamerNow() {
@@ -364,8 +372,8 @@ export default function CreatePage(): JSX.Element {
 
   async function startStream(skipWalletCheck = false): Promise<boolean> {
     if (!skipWalletCheck) {
-      const walletReady = await ensureWalletReady();
-      if (!walletReady) return false;
+      const ok = await ensureWalletIfRequired();
+      if (!ok) return false;
     }
     if (!requireAuth()) return false;
     setLoading(true);
@@ -423,8 +431,8 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function regenerateKey() {
-    const walletReady = await ensureWalletReady();
-    if (!walletReady) return;
+    const ok = await ensureWalletIfRequired();
+    if (!ok) return;
     if (!requireAuth()) return;
     setLoading(true);
     try {
@@ -455,8 +463,8 @@ export default function CreatePage(): JSX.Element {
   }
 
   async function goLiveInBrowser() {
-    const walletReady = await ensureWalletReady();
-    if (!walletReady) return;
+    const ok = await ensureWalletIfRequired();
+    if (!ok) return;
     if (!requireAuth()) return;
     if (!isPrepared) {
       const ok = await startStream(true);
@@ -493,6 +501,8 @@ export default function CreatePage(): JSX.Element {
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
   const isAuthed = Boolean(getAuthToken());
   const hasWalletAddress = Boolean(authUser?.address);
+  const walletNeeded = requireWallet && !hasWalletAddress;
+  const canGoLive = isAuthed && !walletNeeded;
   const readinessLabel = isLive ? "Live to viewers" : isPrepared ? "Waiting for video" : "Not started";
   const statusTone = isLive
     ? "bg-emerald-400/15 text-emerald-200 border-emerald-400/30"
@@ -502,12 +512,16 @@ export default function CreatePage(): JSX.Element {
   const primaryCtaLabel = isLive
     ? "End broadcast"
     : supportsBrowserStudio
-      ? hasWalletAddress
+      ? canGoLive
         ? "Start broadcast"
-        : "Connect wallet to go live"
-      : hasWalletAddress
+        : isAuthed
+          ? "Connect wallet to go live"
+          : "Sign in to go live"
+      : canGoLive
         ? "Prepare broadcast"
-        : "Connect wallet to go live";
+        : isAuthed
+          ? "Connect wallet to go live"
+          : "Sign in to go live";
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
   const showStopButton = isPrepared || isLive;

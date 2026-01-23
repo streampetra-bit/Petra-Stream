@@ -66,7 +66,7 @@ export default function UserDropdown(): JSX.Element {
     const normalized = trimmed.toLowerCase();
     const addr = user?.address?.toLowerCase();
     if (addr && normalized === addr) return "";
-    if (/^0x[a-f0-9]{40}$/i.test(normalized)) return "";
+    if (/^0x[a-f0-9]{6,}$/i.test(normalized)) return "";
     return trimmed;
   };
 
