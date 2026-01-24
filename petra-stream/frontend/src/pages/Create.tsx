@@ -7,6 +7,7 @@ import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import LocalRecorder from "../components/LocalRecorder";
+import ChatPanel from "../components/ChatPanel";
 import SignInModal from "../components/SignInModal";
 import WalletHelpModal from "../components/WalletHelpModal";
 import { AUTH_TOKEN_KEY, getAuthToken, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
@@ -30,6 +31,8 @@ export default function CreatePage(): JSX.Element {
   const [checkingPlayback, setCheckingPlayback] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
   const [showPublisher, setShowPublisher] = useState(false);
+  const [streamerId, setStreamerId] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const [tokenGated, setTokenGated] = useState(true);
   const [royaltyPct, setRoyaltyPct] = useState(8);
@@ -67,6 +70,7 @@ export default function CreatePage(): JSX.Element {
     setTitle("");
     setDescription("");
     setStreamKey(null);
+    setStreamerId("");
     setIsLive(false);
     setPlaybackUrl("");
     setIsPrepared(false);
@@ -86,6 +90,7 @@ export default function CreatePage(): JSX.Element {
         setTitle(res.data.title ?? "");
         setDescription(res.data.description ?? "");
         setStreamKey(res.data.streamKey ?? null);
+        setStreamerId(String(res.data.streamer ?? res.data.id ?? ""));
         const status = String(res.data.status ?? "");
         setIsLive(status === "online");
         setPlaybackUrl(res.data.playbackUrl ?? "");
@@ -428,6 +433,9 @@ export default function CreatePage(): JSX.Element {
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       const payload = { title: finalTitle, description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
       const res = await api.post("/api/streams/start", payload);
+      if (res?.data?.streamer || res?.data?.id) {
+        setStreamerId(String(res.data.streamer ?? res.data.id));
+      }
       if (res?.data?.ok ?? true) {
         toast.success("Stream ready", "Go live in browser or OBS.", 2500);
       } else {
@@ -544,6 +552,10 @@ export default function CreatePage(): JSX.Element {
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
   const isAuthed = Boolean(getAuthToken());
+  const chatUser =
+    authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "Creator";
+  const streamRoomId =
+    streamerId || authUser?.username || authUser?.address || authUser?.id || streamKey || "creator";
   const hasWalletAddress = Boolean(authUser?.address);
   const walletNeeded = requireWallet && !hasWalletAddress;
   const canGoLive = isAuthed && !walletNeeded;
@@ -569,6 +581,306 @@ export default function CreatePage(): JSX.Element {
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
   const showStopButton = isPrepared || isLive;
+  const detailsPanel = (
+    <div className="glass-card p-6 sm:p-8 lg:p-10 rounded-[2.5rem]">
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-2xl font-bold text-text flex items-center gap-3">
+            <span className="text-primary">Stream Details</span>
+          </h3>
+          <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/40 tracking-widest uppercase">
+            Autosave on
+          </span>
+        </div>
+        <p className="text-white/40 text-sm font-medium">
+          Configure your on-chain broadcast identity.
+        </p>
+      </div>
+
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
+            Broadcast title
+          </label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-2xl h-14 px-6 text-text font-semibold placeholder:text-white/20 text-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            placeholder="A cinematic title..."
+          />
+        </div>
+        <div className="space-y-3">
+          <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
+            Broadcast description
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full rounded-2xl p-5 text-text font-medium placeholder:text-white/20 min-h-[140px] resize-none leading-relaxed bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            placeholder="Tell your audience what is happening..."
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
+              Category
+            </label>
+            <div className="relative">
+              <select className="w-full rounded-2xl h-12 px-5 appearance-none text-text font-semibold text-sm tracking-wide bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
+                <option>Crypto Gaming</option>
+                <option>Metaverse Explorers</option>
+                <option>DAO Governance</option>
+                <option>Creative Arts</option>
+              </select>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">
+                v
+              </span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
+              Tags
+            </label>
+            <input
+              className="w-full rounded-2xl h-12 px-5 text-text font-semibold text-sm bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              placeholder="#web3 #live #nft"
+            />
+          </div>
+        </div>
+      </div>
+
+      <section className="mt-10">
+        <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em] mb-4">Session</h4>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <div className="text-2xl font-bold text-text">{stats.viewers}</div>
+            <div className="text-[10px] text-white/40 uppercase tracking-widest">Viewers</div>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <div className="text-2xl font-bold text-text">{stats.tips}</div>
+            <div className="text-[10px] text-white/40 uppercase tracking-widest">Tips</div>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <div className="text-2xl font-bold text-text">{Math.floor(stats.uptimeSec / 60)}m</div>
+            <div className="text-[10px] text-white/40 uppercase tracking-widest">Uptime</div>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => copyText("Playback URL", playbackUrl)}
+            className="px-3 py-2 rounded-full border border-white/10 text-xs"
+            disabled={!playbackUrl}
+          >
+            Copy playback link
+          </button>
+          <button
+            onClick={() => copyText("RTMP server URL", ingestServer)}
+            className="px-3 py-2 rounded-full border border-white/10 text-xs"
+          >
+            Copy RTMP info
+          </button>
+        </div>
+      </section>
+
+      <section className="mt-10 space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em]">Web3 Monetization</h4>
+            <p className="text-[10px] text-white/40 mt-2">
+              Wallet connection unlocks creator tools. On-chain registration is optional.
+            </p>
+          </div>
+          {registryAddress && ethers.isAddress(registryAddress) ? (
+            <button
+              type="button"
+              onClick={registerStreamerNow}
+              disabled={registeringWallet}
+              className="px-3 py-2 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em]"
+            >
+              {registeringWallet ? "Registering..." : "Register wallet"}
+            </button>
+          ) : null}
+        </div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div>
+              <h5 className="text-sm font-bold text-text">Token-Gating</h5>
+              <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">
+                Restrict to verified NFT holders
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={tokenGated}
+                onChange={(e) => setTokenGated(e.target.checked)}
+              />
+              <div className="relative h-7 w-14 rounded-full border border-white/10 bg-white/10 transition peer-checked:bg-primary/80 peer-checked:border-primary/60 after:absolute after:left-[4px] after:top-[4px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-7" />
+            </label>
+          </div>
+
+          <div className="space-y-4 px-1">
+            <div className="flex items-center justify-between">
+              <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
+                Creator Royalties
+              </label>
+              <span className="text-primary font-mono font-black text-xl">{royaltyPct.toFixed(1)}%</span>
+            </div>
+            <div className="relative h-2 w-full rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-accent"
+                style={{ width: `${(royaltyPct / 15) * 100}%` }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={15}
+                step={0.5}
+                value={royaltyPct}
+                onChange={(e) => setRoyaltyPct(Number(e.target.value))}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </div>
+            <div className="flex justify-between text-[9px] text-white/30 font-bold uppercase tracking-widest">
+              <span>Min 0%</span>
+              <span>Max 15%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details className="mt-10 border-t border-white/10 pt-8">
+        <summary className="cursor-pointer text-sm font-semibold text-text">
+          Advanced settings
+        </summary>
+        <div className="mt-6 space-y-6">
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs subtle">Playback URL (HLS)</label>
+              <button
+                type="button"
+                onClick={() => setAutoPlayback((s) => !s)}
+                className="text-xs px-2 py-1 rounded-md border border-white/10"
+              >
+                {autoPlayback ? "Use custom URL" : "Use auto URL"}
+              </button>
+            </div>
+            <input
+              value={playbackUrl}
+              onChange={(e) => setPlaybackUrl(e.target.value)}
+              className="w-full p-3 mt-2 rounded-xl border border-white/10 bg-white/5 text-text"
+              placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
+              disabled={autoPlayback}
+            />
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={testPlayback}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                disabled={checkingPlayback}
+              >
+                {checkingPlayback ? "Checking..." : "Test playback"}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 p-4 bg-white/5">
+            <div className="text-xs subtle">OBS / External encoder</div>
+            <div className="mt-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-subtle">Server</span>
+                <span className="font-mono text-text">{ingestServer}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <span className="text-subtle">Stream key</span>
+                <span className="font-mono text-text">{streamKey || "generate to see"}</span>
+              </div>
+            </div>
+            <div className="mt-2 text-xs subtle">
+              Use OBS if you need advanced scenes, overlays, or desktop capture.
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => copyText("RTMP server URL", ingestServer)}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+              >
+                Copy RTMP server
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText("Stream key", streamKey ?? "")}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                disabled={!streamKey}
+              >
+                Copy stream key
+              </button>
+            </div>
+          </div>
+
+          <StreamKeyPanel streamKey={streamKey} onRegenerate={regenerateKey} />
+          <LocalRecorder />
+
+          <div className="glass-card p-4">
+            <h3 className="text-sm font-semibold">Diagnostics</h3>
+            <p className="muted text-xs mt-1">Use this to verify stream URLs and auth status.</p>
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="subtle">Auth</span>
+                <span className="text-text">{isAuthed ? "Signed in" : "Signed out"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="subtle">Studio URL</span>
+                <span className="font-mono text-[10px] text-text">{webrtcPublishUrl || "not-set"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="subtle">Playback URL</span>
+                <span className="font-mono text-[10px] text-text">{playbackUrl || "not-set"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="subtle">Last check</span>
+                <span className="text-text">
+                  {lastPlaybackCheck
+                    ? `${lastPlaybackCheck.ok ? "OK" : "Fail"}${lastPlaybackCheck.status ? ` (${lastPlaybackCheck.status})` : ""}`
+                    : "not-run"}
+                </span>
+              </div>
+            </div>
+            {lastPlaybackCheck?.reason ? (
+              <div className="mt-2 text-[11px] text-amber-200/80">Reason: {lastPlaybackCheck.reason}</div>
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={testPlayback}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                disabled={checkingPlayback}
+              >
+                {checkingPlayback ? "Checking..." : "Check playback"}
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText("Playback URL", playbackUrl)}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                disabled={!playbackUrl}
+              >
+                Copy HLS URL
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText("Studio URL", webrtcPublishUrl)}
+                className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                disabled={!webrtcPublishUrl}
+              >
+                Copy studio URL
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  );
 
   useEffect(() => {
     if (!isPrepared || !playbackUrl || isLive) return;
@@ -763,307 +1075,75 @@ export default function CreatePage(): JSX.Element {
             </section>
           </div>
           <div className="lg:col-span-5">
-            <div className="glass-card p-6 sm:p-8 lg:p-10 rounded-[2.5rem] lg:sticky lg:top-28 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
-              <div className="mb-10">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-2xl font-bold text-text flex items-center gap-3">
-                    <span className="text-primary">Stream Details</span>
-                  </h3>
-                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/40 tracking-widest uppercase">
-                    Autosave on
-                  </span>
-                </div>
-                <p className="text-white/40 text-sm font-medium">
-                  Configure your on-chain broadcast identity.
-                </p>
-              </div>
-
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                    Broadcast title
-                  </label>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full rounded-2xl h-14 px-6 text-text font-semibold placeholder:text-white/20 text-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    placeholder="A cinematic title..."
-                  />
-                </div>
-                <div className="space-y-3">
-                  <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                    Broadcast description
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full rounded-2xl p-5 text-text font-medium placeholder:text-white/20 min-h-[140px] resize-none leading-relaxed bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    placeholder="Tell your audience what is happening..."
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                      Category
-                    </label>
-                    <div className="relative">
-                      <select className="w-full rounded-2xl h-12 px-5 appearance-none text-text font-semibold text-sm tracking-wide bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40">
-                        <option>Crypto Gaming</option>
-                        <option>Metaverse Explorers</option>
-                        <option>DAO Governance</option>
-                        <option>Creative Arts</option>
-                      </select>
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">
-                        v
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                      Tags
-                    </label>
-                    <input
-                      className="w-full rounded-2xl h-12 px-5 text-text font-semibold text-sm bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      placeholder="#web3 #live #nft"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <section className="mt-10">
-                <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em] mb-4">Session</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 rounded-xl bg-white/5 text-center">
-                    <div className="text-2xl font-bold text-text">{stats.viewers}</div>
-                    <div className="text-[10px] text-white/40 uppercase tracking-widest">Viewers</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/5 text-center">
-                    <div className="text-2xl font-bold text-text">{stats.tips}</div>
-                    <div className="text-[10px] text-white/40 uppercase tracking-widest">Tips</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/5 text-center">
-                    <div className="text-2xl font-bold text-text">{Math.floor(stats.uptimeSec / 60)}m</div>
-                    <div className="text-[10px] text-white/40 uppercase tracking-widest">Uptime</div>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => copyText("Playback URL", playbackUrl)}
-                    className="px-3 py-2 rounded-full border border-white/10 text-xs"
-                    disabled={!playbackUrl}
-                  >
-                    Copy playback link
-                  </button>
-                  <button
-                    onClick={() => copyText("RTMP server URL", ingestServer)}
-                    className="px-3 py-2 rounded-full border border-white/10 text-xs"
-                  >
-                    Copy RTMP info
-                  </button>
-                </div>
-              </section>
-
-              <section className="mt-10 space-y-6">
-                <div className="flex items-center justify-between gap-3">
+            <div className="lg:sticky lg:top-28 lg:max-h-[calc(100vh-180px)] flex flex-col gap-6 h-full">
+              <div className="glass-card rounded-3xl p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h4 className="text-xs font-black text-primary uppercase tracking-[0.25em]">Web3 Monetization</h4>
-                    <p className="text-[10px] text-white/40 mt-2">
-                      Wallet connection unlocks creator tools. On-chain registration is optional.
+                    <p className="text-[9px] text-white/40 uppercase font-bold tracking-[0.2em]">Broadcast</p>
+                    <h3 className="text-lg font-semibold text-text mt-2">
+                      {title.trim() ? title : "Untitled broadcast"}
+                    </h3>
+                    <p className="text-xs text-white/50 mt-2 leading-relaxed">
+                      {description.trim()
+                        ? description
+                        : "Add a description so viewers know what is happening in your stream."}
                     </p>
                   </div>
-                  {registryAddress && ethers.isAddress(registryAddress) ? (
+                  <div className="flex flex-col items-end gap-3">
+                    <span
+                      className={`px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-widest ${statusTone}`}
+                    >
+                      {statusLabel}
+                    </span>
                     <button
                       type="button"
-                      onClick={registerStreamerNow}
-                      disabled={registeringWallet}
+                      onClick={() => setShowDetails(true)}
                       className="px-3 py-2 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em]"
                     >
-                      {registeringWallet ? "Registering..." : "Register wallet"}
+                      Stream details
                     </button>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/50 uppercase tracking-widest">
+                    {readinessLabel}
+                  </span>
+                  {streamRoomId ? (
+                    <span className="text-[10px] text-white/40">
+                      Room: <span className="font-mono text-text">{streamRoomId}</span>
+                    </span>
                   ) : null}
                 </div>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div>
-                      <h5 className="text-sm font-bold text-text">Token-Gating</h5>
-                      <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">
-                        Restrict to verified NFT holders
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={tokenGated}
-                        onChange={(e) => setTokenGated(e.target.checked)}
-                      />
-                      <div className="relative h-7 w-14 rounded-full border border-white/10 bg-white/10 transition peer-checked:bg-primary/80 peer-checked:border-primary/60 after:absolute after:left-[4px] after:top-[4px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-7" />
-                    </label>
-                  </div>
+              </div>
 
-                  <div className="space-y-4 px-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em]">
-                        Creator Royalties
-                      </label>
-                      <span className="text-primary font-mono font-black text-xl">{royaltyPct.toFixed(1)}%</span>
-                    </div>
-                    <div className="relative h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-accent"
-                        style={{ width: `${(royaltyPct / 15) * 100}%` }}
-                      />
-                      <input
-                        type="range"
-                        min={0}
-                        max={15}
-                        step={0.5}
-                        value={royaltyPct}
-                        onChange={(e) => setRoyaltyPct(Number(e.target.value))}
-                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                      />
-                    </div>
-                    <div className="flex justify-between text-[9px] text-white/30 font-bold uppercase tracking-widest">
-                      <span>Min 0%</span>
-                      <span>Max 15%</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <details className="mt-10 border-t border-white/10 pt-8">
-                <summary className="cursor-pointer text-sm font-semibold text-text">
-                  Advanced settings
-                </summary>
-                <div className="mt-6 space-y-6">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs subtle">Playback URL (HLS)</label>
-                      <button
-                        type="button"
-                        onClick={() => setAutoPlayback((s) => !s)}
-                        className="text-xs px-2 py-1 rounded-md border border-white/10"
-                      >
-                        {autoPlayback ? "Use custom URL" : "Use auto URL"}
-                      </button>
-                    </div>
-                    <input
-                      value={playbackUrl}
-                      onChange={(e) => setPlaybackUrl(e.target.value)}
-                      className="w-full p-3 mt-2 rounded-xl border border-white/10 bg-white/5 text-text"
-                      placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
-                      disabled={autoPlayback}
-                    />
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={testPlayback}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                        disabled={checkingPlayback}
-                      >
-                        {checkingPlayback ? "Checking..." : "Test playback"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 p-4 bg-white/5">
-                    <div className="text-xs subtle">OBS / External encoder</div>
-                    <div className="mt-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-subtle">Server</span>
-                        <span className="font-mono text-text">{ingestServer}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-2">
-                        <span className="text-subtle">Stream key</span>
-                        <span className="font-mono text-text">{streamKey || "generate to see"}</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs subtle">
-                      Use OBS if you need advanced scenes, overlays, or desktop capture.
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyText("RTMP server URL", ingestServer)}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                      >
-                        Copy RTMP server
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyText("Stream key", streamKey ?? "")}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                        disabled={!streamKey}
-                      >
-                        Copy stream key
-                      </button>
-                    </div>
-                  </div>
-
-                  <StreamKeyPanel streamKey={streamKey} onRegenerate={regenerateKey} />
-                  <LocalRecorder />
-
-                  <div className="glass-card p-4">
-                    <h3 className="text-sm font-semibold">Diagnostics</h3>
-                    <p className="muted text-xs mt-1">Use this to verify stream URLs and auth status.</p>
-                    <div className="mt-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="subtle">Auth</span>
-                        <span className="text-text">{isAuthed ? "Signed in" : "Signed out"}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="subtle">Studio URL</span>
-                        <span className="font-mono text-[10px] text-text">{webrtcPublishUrl || "not-set"}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="subtle">Playback URL</span>
-                        <span className="font-mono text-[10px] text-text">{playbackUrl || "not-set"}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="subtle">Last check</span>
-                        <span className="text-text">
-                          {lastPlaybackCheck
-                            ? `${lastPlaybackCheck.ok ? "OK" : "Fail"}${lastPlaybackCheck.status ? ` (${lastPlaybackCheck.status})` : ""}`
-                            : "not-run"}
-                        </span>
-                      </div>
-                    </div>
-                    {lastPlaybackCheck?.reason ? (
-                      <div className="mt-2 text-[11px] text-amber-200/80">Reason: {lastPlaybackCheck.reason}</div>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={testPlayback}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                        disabled={checkingPlayback}
-                      >
-                        {checkingPlayback ? "Checking..." : "Check playback"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyText("Playback URL", playbackUrl)}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                        disabled={!playbackUrl}
-                      >
-                        Copy HLS URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyText("Studio URL", webrtcPublishUrl)}
-                        className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                        disabled={!webrtcPublishUrl}
-                      >
-                        Copy studio URL
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </details>
-
+              <div className="glass-card rounded-3xl overflow-hidden flex-1 min-h-[420px]">
+                <ChatPanel streamId={String(streamRoomId)} currentUser={chatUser} />
+              </div>
             </div>
           </div>
         </div>
+        {showDetails ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/70"
+              aria-label="Close stream details"
+              onClick={() => setShowDetails(false)}
+            />
+            <div className="relative w-full max-w-4xl max-h-[90vh]">
+              <button
+                type="button"
+                onClick={() => setShowDetails(false)}
+                className="absolute right-6 top-6 z-10 px-3 py-2 rounded-full border border-white/10 text-xs bg-black/40"
+              >
+                Close
+              </button>
+              <div className="max-h-[90vh] overflow-y-auto pt-12">
+                {detailsPanel}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {authMode && (
           <SignInModal
             defaultMode={authMode}
