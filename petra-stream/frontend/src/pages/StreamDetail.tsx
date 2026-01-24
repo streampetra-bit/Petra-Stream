@@ -91,6 +91,7 @@ export default function StreamDetail(): JSX.Element {
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
+  const hlsBaseUrl = String(import.meta.env.VITE_HLS_BASE_URL || "");
   const currentUser =
     authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "You";
 
@@ -354,8 +355,24 @@ export default function StreamDetail(): JSX.Element {
       authUser.id === followTarget);
   const fallbackPoster =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDiux0GO7MxQbxJ21SEoyp6z6VvJSxmNY60g-YK-BoJ4mYzHyuAfpDT3LhX_smt_Rddp6Uf2pDoYSi16COw16t1dXUOozZHnUVutpgChyuMpOiXj-GIAMPJMEkMldSxVCBe30rxMSsKHK2kSf3LHiRvy7Oa5IwkKCAHcJRi2TDE8r3bY8HYYficQy6qp4R9Ah6iDjVFewo0xxeBiJ7cVvCIwmYlFIjyDoKY0mrPf3Vp3xUZy4QUd5Ym0JYC_ue9Q1JvmLejy7lM2KU";
-  const playbackSrc = isLive ? stream?.playbackUrl ?? stream?.videoUrl ?? undefined : undefined;
+  const playbackSrc = isLive ? normalizePlaybackUrl(stream?.playbackUrl ?? stream?.videoUrl) : undefined;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
+
+  function normalizePlaybackUrl(raw?: string) {
+    if (!raw) return undefined;
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const base = hlsBaseUrl.replace(/\/+$/, "");
+    const match = trimmed.match(/\/live\/([^/]+)\/index\.m3u8/i);
+    if (base && match?.[1]) {
+      const baseWithLive = /\/live$/i.test(base) ? base : `${base}/live`;
+      return `${baseWithLive}/${match[1]}/index.m3u8`;
+    }
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && trimmed.startsWith("http://")) {
+      return trimmed.replace(/^http:\/\//i, "https://");
+    }
+    return trimmed;
+  }
 
   const focusChat = () => {
     const el = document.getElementById(chatInputId) as HTMLInputElement | null;
