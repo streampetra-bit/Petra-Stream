@@ -31,8 +31,8 @@ function normalizeWhipUrl(input: string) {
   }
 }
 
-const CAMERA_PROFILE: EncodingProfile = { maxBitrate: 1_200_000, maxFramerate: 24 };
-const SCREEN_PROFILE: EncodingProfile = { maxBitrate: 1_800_000, maxFramerate: 15 };
+const CAMERA_PROFILE: EncodingProfile = { maxBitrate: 800_000, maxFramerate: 24 };
+const SCREEN_PROFILE: EncodingProfile = { maxBitrate: 800_000, maxFramerate: 15 };
 
 async function waitForIceComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
