@@ -83,14 +83,14 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          // tuned for low-latency live playback with reasonable resilience
+          // tuned for smoother live playback while keeping latency reasonable
           lowLatencyMode: true,
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 6,
-          maxLiveSyncPlaybackRate: 1.5,
-          maxBufferLength: 12,
-          maxMaxBufferLength: 20,
-          maxBufferHole: 0.5,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 10,
+          maxLiveSyncPlaybackRate: 1.2,
+          maxBufferLength: 20,
+          maxMaxBufferLength: 30,
+          maxBufferHole: 1,
           backBufferLength: 60,
           capLevelToPlayerSize: true,
         });

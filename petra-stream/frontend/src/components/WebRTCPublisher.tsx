@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useToast } from "../contexts/ToastContext";
 
 type PublishMode = "camera" | "screen";
+type EncodingProfile = { maxBitrate: number; maxFramerate: number };
 
 type WebRTCPublisherProps = {
   publishUrl: string;
@@ -29,6 +30,9 @@ function normalizeWhipUrl(input: string) {
     return "";
   }
 }
+
+const CAMERA_PROFILE: EncodingProfile = { maxBitrate: 1_200_000, maxFramerate: 24 };
+const SCREEN_PROFILE: EncodingProfile = { maxBitrate: 1_800_000, maxFramerate: 15 };
 
 async function waitForIceComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
@@ -75,6 +79,19 @@ export default function WebRTCPublisher({
     const pc = pcRef.current;
     if (!pc) return null;
     return pc.getSenders().find((sender) => sender.track && sender.track.kind === kind) || null;
+  }
+
+  async function applyEncoding(sender: RTCRtpSender | null, profile: EncodingProfile) {
+    if (!sender || !sender.getParameters) return;
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+    params.encodings[0].maxBitrate = profile.maxBitrate;
+    params.encodings[0].maxFramerate = profile.maxFramerate;
+    try {
+      await sender.setParameters(params);
+    } catch {
+      // ignore for browsers that restrict setParameters
+    }
   }
 
   function preferH264(transceiver: RTCRtpTransceiver) {
@@ -135,6 +152,7 @@ export default function WebRTCPublisher({
       const videoSender = getSender("video");
       if (videoSender) {
         await videoSender.replaceTrack(nextVideo);
+        await applyEncoding(videoSender, nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE);
       }
     }
     if (nextAudio) {
@@ -202,6 +220,7 @@ export default function WebRTCPublisher({
       if (videoTrack) {
         const videoTx = pc.addTransceiver(videoTrack, { direction: "sendonly" });
         preferH264(videoTx);
+        await applyEncoding(videoTx.sender, nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE);
       }
       if (streamAudioTrack) {
         pc.addTransceiver(streamAudioTrack, { direction: "sendonly" });
