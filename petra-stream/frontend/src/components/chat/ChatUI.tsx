@@ -73,6 +73,7 @@ export default function ChatUI({
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showModeration, setShowModeration] = useState(false);
   const initialScrollRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -258,7 +259,7 @@ export default function ChatUI({
       )}
       aria-label="Chat panel"
     >
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-white/10">
+      <div className="flex flex-col gap-3 px-4 py-3 border-b border-white/10 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setOpen((s) => !s)}
@@ -274,7 +275,7 @@ export default function ChatUI({
             <div className="text-[11px] text-white/40">{subtitle}</div>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-white/50">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
           <span className="px-2 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest text-white/60">
             {variantTag}
           </span>
@@ -282,6 +283,15 @@ export default function ChatUI({
           <span className={clsx("px-2 py-1 rounded-full border text-[10px] uppercase tracking-widest", isConnected ? "border-emerald-400/40 text-emerald-200" : "border-amber-400/40 text-amber-200")}>
             {statusLabel}
           </span>
+          {showModerationPanel ? (
+            <button
+              type="button"
+              className="px-2 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest"
+              onClick={() => setShowModeration(true)}
+            >
+              Moderation
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -440,33 +450,56 @@ export default function ChatUI({
           </div>
         </div>
 
-        {showModerationPanel ? (
-          <aside className="hidden lg:flex flex-col gap-3 w-48 shrink-0 border-l border-white/10 bg-white/5 p-3">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/40">Moderation</div>
-            <button
-              className="px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
-              onClick={onClearChat}
-            >
-              Clear chat
-            </button>
-            <button
-              className="px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
-              onClick={() => onModerateMessage?.("timeout", "bulk")}
-            >
-              Timeout last user
-            </button>
-            <button
-              className="px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
-              onClick={() => onModerateMessage?.("ban", "bulk")}
-            >
-              Ban last user
-            </button>
-            <div className="text-[11px] text-white/50">
-              Use inline actions on messages for precision.
-            </div>
-          </aside>
-        ) : null}
       </div>
+
+      {showModeration && showModerationPanel ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-10" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70"
+            aria-label="Close moderation panel"
+            onClick={() => setShowModeration(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-surface/90 p-5 backdrop-blur">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-semibold text-text">Moderation</div>
+                <div className="text-[11px] text-white/40">Quick actions for live chat.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModeration(false)}
+                className="px-2 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-3">
+              <button
+                className="w-full px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
+                onClick={onClearChat}
+              >
+                Clear chat
+              </button>
+              <button
+                className="w-full px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
+                onClick={() => onModerateMessage?.("timeout", "bulk")}
+              >
+                Timeout last user
+              </button>
+              <button
+                className="w-full px-3 py-2 rounded-lg border border-white/10 text-xs text-left"
+                onClick={() => onModerateMessage?.("ban", "bulk")}
+              >
+                Ban last user
+              </button>
+              <div className="text-[11px] text-white/50">
+                Use inline actions on messages for precision.
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
