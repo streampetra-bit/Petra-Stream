@@ -57,6 +57,7 @@ export default function WebRTCPublisher({
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
   const sessionUrlRef = useRef<string | null>(null);
   const [mode, setMode] = useState<PublishMode>(defaultMode);
+  const [shareSystemAudio, setShareSystemAudio] = useState(false);
   const [status, setStatus] = useState("Idle");
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,17 +77,59 @@ export default function WebRTCPublisher({
     return pc.getSenders().find((sender) => sender.track && sender.track.kind === kind) || null;
   }
 
+  function preferH264(transceiver: RTCRtpTransceiver) {
+    const caps = RTCRtpSender.getCapabilities?.("video");
+    if (!caps?.codecs?.length) return;
+    const h264 = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() === "video/h264");
+    if (!h264.length) return;
+    const rest = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() !== "video/h264");
+    transceiver.setCodecPreferences([...h264, ...rest]);
+  }
+
+  async function getCapture(nextMode: PublishMode) {
+    if (nextMode === "camera") {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      return { stream, audioTrack: stream.getAudioTracks()[0] || null };
+    }
+
+    const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: shareSystemAudio });
+    const videoTrack = display.getVideoTracks()[0] || null;
+    let audioTrack = display.getAudioTracks()[0] || null;
+
+    if (!audioTrack) {
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioTrack = mic.getAudioTracks()[0] || null;
+      } catch {
+        audioTrack = null;
+      }
+    }
+
+    const combined = new MediaStream();
+    if (videoTrack) combined.addTrack(videoTrack);
+    if (audioTrack) combined.addTrack(audioTrack);
+    return { stream: combined, audioTrack };
+  }
+
   async function replaceTracks(nextMode: PublishMode) {
     const pc = pcRef.current;
     if (!pc) return;
     setStatus("Switching source...");
     const stream =
       nextMode === "screen"
-        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: shareSystemAudio })
         : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
     const nextVideo = stream.getVideoTracks()[0];
-    const nextAudio = stream.getAudioTracks()[0] || audioTrackRef.current;
+    let nextAudio = stream.getAudioTracks()[0] || audioTrackRef.current;
+    if (!nextAudio) {
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        nextAudio = mic.getAudioTracks()[0] || null;
+      } catch {
+        nextAudio = null;
+      }
+    }
 
     if (nextVideo) {
       const videoSender = getSender("video");
@@ -106,11 +149,21 @@ export default function WebRTCPublisher({
       if (nextVideo) previewStream.addTrack(nextVideo);
       if (nextAudio) previewStream.addTrack(nextAudio);
       videoRef.current.srcObject = previewStream;
+      videoRef.current.muted = true;
       await videoRef.current.play().catch(() => {});
     }
 
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = stream;
+    const keep = new Set<MediaStreamTrack>();
+    if (nextVideo) keep.add(nextVideo);
+    if (nextAudio) keep.add(nextAudio);
+    streamRef.current?.getTracks().forEach((track) => {
+      if (!keep.has(track)) track.stop();
+    });
+    const combined = new MediaStream();
+    if (nextVideo) combined.addTrack(nextVideo);
+    if (nextAudio) combined.addTrack(nextAudio);
+    streamRef.current = combined;
+    audioTrackRef.current = nextAudio || null;
 
     if (nextMode === "screen" && nextVideo) {
       nextVideo.addEventListener("ended", () => {
@@ -133,20 +186,26 @@ export default function WebRTCPublisher({
     setError(null);
     setStatus("Requesting permissions...");
     try {
-      const stream =
-        nextMode === "screen"
-          ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-          : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const { stream, audioTrack } = await getCapture(nextMode);
 
       streamRef.current = stream;
-      audioTrackRef.current = stream.getAudioTracks()[0] || null;
+      audioTrackRef.current = audioTrack;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.muted = true;
         await videoRef.current.play().catch(() => {});
       }
 
       const pc = new RTCPeerConnection();
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      const videoTrack = stream.getVideoTracks()[0];
+      const streamAudioTrack = stream.getAudioTracks()[0];
+      if (videoTrack) {
+        const videoTx = pc.addTransceiver(videoTrack, { direction: "sendonly" });
+        preferH264(videoTx);
+      }
+      if (streamAudioTrack) {
+        pc.addTransceiver(streamAudioTrack, { direction: "sendonly" });
+      }
       pcRef.current = pc;
 
       pc.onconnectionstatechange = () => {
@@ -277,6 +336,16 @@ export default function WebRTCPublisher({
               Screen
             </button>
           </div>
+          <label className="inline-flex items-center gap-2 text-[11px] text-white/60">
+            <input
+              type="checkbox"
+              checked={shareSystemAudio}
+              onChange={(e) => setShareSystemAudio(e.target.checked)}
+              disabled={publishing}
+              className="rounded border-white/20 bg-transparent"
+            />
+            System audio
+          </label>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <span className={clsx("px-2 py-1 rounded-full border text-[10px] uppercase tracking-widest", publishing ? "border-emerald-400/40 text-emerald-200" : "border-white/10 text-white/60")}>
