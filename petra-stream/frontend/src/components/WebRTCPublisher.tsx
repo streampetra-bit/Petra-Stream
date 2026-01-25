@@ -182,10 +182,18 @@ export default function WebRTCPublisher({
       toast.success("Broadcasting", nextMode === "screen" ? "Screen share live" : "Camera live", 2200);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Publish failed");
-      setStatus("Failed to start");
+      if (err?.name === "NotAllowedError") {
+        setError(null);
+        setStatus("Permission denied");
+        toast.info("Screen share cancelled", "You can keep streaming with the current source.", 2400);
+      } else {
+        setError(err?.message || "Publish failed");
+        setStatus("Failed to start");
+      }
       await stopPublish();
-      toast.error("Broadcast failed", err?.message || "Unable to start", 3000);
+      if (err?.name !== "NotAllowedError") {
+        toast.error("Broadcast failed", err?.message || "Unable to start", 3000);
+      }
     }
   }
 
@@ -235,9 +243,14 @@ export default function WebRTCPublisher({
       toast.success("Source switched", nextMode === "screen" ? "Screen share live" : "Camera live", 2000);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Switch failed");
+      if (err?.name === "NotAllowedError") {
+        setError(null);
+        toast.info("Screen share cancelled", "Continuing with your current source.", 2400);
+      } else {
+        setError(err?.message || "Switch failed");
+        toast.error("Switch failed", err?.message || "Unable to switch source", 2600);
+      }
       setStatus("Live");
-      toast.error("Switch failed", err?.message || "Unable to switch source", 2600);
     }
   }
 
