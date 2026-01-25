@@ -2,7 +2,44 @@
 import React from "react";
 import clsx from "clsx";
 
-import { ChatMsg } from "./ChatPanel";
+import { ChatBadge, ChatEmoteMap, ChatMessage } from "./chat/types";
+
+const badgeStyles: Record<ChatBadge, { label: string; className: string }> = {
+  moderator: { label: "MOD", className: "bg-emerald-400/15 text-emerald-200 border-emerald-400/30" },
+  subscriber: { label: "SUB", className: "bg-primary/15 text-primary border-primary/30" },
+  partner: { label: "PARTNER", className: "bg-indigo-400/15 text-indigo-200 border-indigo-400/30" },
+  vip: { label: "VIP", className: "bg-amber-400/15 text-amber-200 border-amber-400/30" },
+  owner: { label: "HOST", className: "bg-pink-400/15 text-pink-200 border-pink-400/30" },
+};
+
+function hashColor(input: string) {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = input.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 70%)`;
+}
+
+function renderEmotes(text: string, emotes?: ChatEmoteMap) {
+  if (!emotes) return text;
+  return text.split(/(\s+)/).map((token, index) => {
+    if (!token.trim()) return token;
+    const normalized = token.replace(/^:+|:+$/g, "");
+    const direct = emotes[token];
+    const wrapped = emotes[normalized];
+    const url = direct || (token.startsWith(":") && token.endsWith(":") ? wrapped : undefined);
+    if (!url) return token;
+    return (
+      <img
+        key={`${token}-${index}`}
+        src={url}
+        alt={normalized}
+        className="inline-block h-5 w-5 align-text-bottom"
+      />
+    );
+  });
+}
 
 export default function MessageBubble({
   msg,
@@ -11,63 +48,100 @@ export default function MessageBubble({
   onTimeout,
   isModerator = false,
   onReply,
+  showTimestamp = false,
+  emotes,
+  shade = false,
 }: {
-  msg: ChatMsg;
+  msg: ChatMessage;
   mine?: boolean;
   onDelete?: () => void;
   onTimeout?: () => void;
   isModerator?: boolean;
   onReply?: () => void;
+  showTimestamp?: boolean;
+  emotes?: ChatEmoteMap;
+  shade?: boolean;
 }) {
   const time = new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const nameColor = msg.color || hashColor(msg.user || "user");
+  const initials = (msg.user || "?").slice(0, 2).toUpperCase();
+  const content = msg.deleted ? "[message removed]" : msg.text;
+
+  if (msg.system) {
+    return (
+      <div className="text-xs text-amber-200/80 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+        {msg.text}
+      </div>
+    );
+  }
 
   return (
-    <div className={clsx("flex items-start gap-2", mine ? "justify-end" : "justify-start")}>
-      {/* avatar stub */}
-      <div className={clsx("w-8 h-8 rounded-md flex items-center justify-center neon-ring", mine ? "order-2" : "order-1")}>
-        <span className="text-xs font-mono">{(msg.user || "?").slice(0, 2).toUpperCase()}</span>
+    <div
+      className={clsx(
+        "group flex items-start gap-3 rounded-xl px-3 py-2 transition-colors",
+        shade ? "bg-white/5" : "bg-transparent"
+      )}
+    >
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold uppercase border border-white/10"
+        style={{ background: "rgba(255,255,255,0.06)", color: nameColor }}
+      >
+        {initials}
       </div>
 
-      <div className={clsx("max-w-[80%]")}>
-        <div className={clsx("inline-flex items-center gap-2")}>
-          <div className="text-xs font-medium text-text">{msg.user}</div>
-          <div className="text-[10px] subtle">{time}</div>
-          {msg.system ? <div className="text-[10px] text-neutral-400 ml-2">system</div> : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold" style={{ color: nameColor }}>
+            {msg.user}
+          </span>
+          {(msg.badges || []).map((badge) => (
+            <span
+              key={`${msg.id}-${badge}`}
+              className={clsx(
+                "px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-widest",
+                badgeStyles[badge]?.className
+              )}
+            >
+              {badgeStyles[badge]?.label ?? badge}
+            </span>
+          ))}
+          {showTimestamp ? <span className="text-[10px] text-white/40">{time}</span> : null}
         </div>
 
         <div
           className={clsx(
-            "mt-1 p-2 rounded-lg",
-            msg.deleted ? "bg-red-700/30 text-subtle italic" : mine ? "bg-primary/10 text-text" : "bg-bg/20 text-text"
+            "mt-1 text-sm leading-relaxed",
+            msg.deleted ? "text-white/40 italic" : mine ? "text-primary/90" : "text-text"
           )}
         >
-          {msg.replyToUser && !msg.deleted && (
-            <div className="mb-1 text-[10px] subtle">
+          {msg.replyToUser && !msg.deleted ? (
+            <div className="mb-1 text-[10px] text-white/40">
               Replying to @{msg.replyToUser}
               {msg.replyToText ? `: "${msg.replyToText.slice(0, 60)}"` : ""}
             </div>
-          )}
-          {msg.deleted ? "[message removed]" : msg.text}
+          ) : null}
+          {msg.deleted ? content : renderEmotes(content, emotes)}
         </div>
 
-        {/* moderation row */}
-        {isModerator && !msg.system && !msg.deleted && (
-          <div className="mt-1 text-xs flex items-center gap-2">
-            <button className="px-2 py-1 rounded-md border text-xs" onClick={onDelete}>
-              Delete
-            </button>
-            <button className="px-2 py-1 rounded-md border text-xs" onClick={onTimeout}>
-              Timeout 1m
-            </button>
+        {(isModerator || onReply) && !msg.deleted ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+            {onReply ? (
+              <button className="px-2 py-1 rounded-md border border-white/10 hover:text-text" onClick={onReply}>
+                Reply
+              </button>
+            ) : null}
+            {isModerator ? (
+              <>
+                <button className="px-2 py-1 rounded-md border border-white/10 hover:text-text" onClick={onDelete}>
+                  Delete
+                </button>
+                <button className="px-2 py-1 rounded-md border border-white/10 hover:text-text" onClick={onTimeout}>
+                  Timeout
+                </button>
+              </>
+            ) : null}
           </div>
-        )}
-        {!msg.system && !msg.deleted && onReply && (
-          <div className="mt-1 text-xs">
-            <button className="px-2 py-1 rounded-md border text-xs" onClick={onReply}>
-              Reply
-            </button>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -83,11 +83,16 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: false,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 8,
-          maxBufferLength: 30,
-          backBufferLength: 30,
+          // tuned for low-latency live playback with reasonable resilience
+          lowLatencyMode: true,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 6,
+          maxLiveSyncPlaybackRate: 1.5,
+          maxBufferLength: 12,
+          maxMaxBufferLength: 20,
+          maxBufferHole: 0.5,
+          backBufferLength: 60,
+          capLevelToPlayerSize: true,
         });
         hlsRef.current = hls;
         hls.attachMedia(v);
@@ -290,26 +295,35 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
             className="rounded-full p-2 bg-black/60 hover:bg-black/70"
           >
             {isPlaying ? (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
-                <path d="M6 19h4V5H6v14zM14 5v14h4V5h-4z" fill="currentColor" />
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M6.5 5.25h3.75v13.5H6.5zM13.75 5.25h3.75v13.5h-3.75z" />
               </svg>
             ) : (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
-                <path d="M8 5v14l11-7z" fill="currentColor" />
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M6.75 4.5v15l12-7.5-12-7.5z" />
               </svg>
             )}
           </button>
 
           <button onClick={() => toggleMute()} aria-label={muted ? 'Unmute' : 'Mute'} className="rounded-full p-2 bg-black/60 hover:bg-black/70">
             {muted ? (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none"><path d="M16.5 9.5 19 7v10l-2.5-2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                <path d="M15.5 9.5 20 14m0-4.5-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
             ) : (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none"><path d="M11 6 6 10H2v4h4l5 4V6z" fill="currentColor"/></svg>
+              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                <path d="M15 9.5a4 4 0 0 1 0 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                <path d="M17.5 7a7 7 0 0 1 0 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
             )}
           </button>
 
           <button onClick={() => requestFullscreen()} aria-label="Toggle Picture-in-Picture / Fullscreen" className="rounded-full p-2 bg-black/60 hover:bg-black/70">
-            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none"><path d="M9 13h6v6H9zM21 7h-8V3H3v14h18V7z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18-3v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3m10 0h3a2 2 0 0 0 2-2v-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         </div>
 

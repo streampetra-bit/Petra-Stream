@@ -304,4 +304,13 @@
   .watch-page h4 {
     font-family: "Space Grotesk", "Plus Jakarta Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
+
+  @keyframes chatIn {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-in {
+    animation: chatIn 160ms ease-out;
+  }
 }

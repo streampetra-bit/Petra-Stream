@@ -35,11 +35,13 @@ webrtcAdditionalHosts:
   - <public-ip>
 
 # HLS variant notes:
-# - WebRTC publish uses Opus audio, so you MUST use fMP4 (or lowLatency) for HLS.
-# - RTMP/OBS publish can use AAC, so standard MPEG-TS is ok.
-hlsVariant: fmp4
-hlsSegmentDuration: 4s
+# - WebRTC publish uses Opus audio, so you MUST use fMP4 or lowLatency for HLS.
+# - Low-latency reduces glass-to-glass delay and helps avoid stalls.
+hlsVariant: lowLatency
+hlsSegmentDuration: 2s
+hlsPartDuration: 200ms
 hlsSegmentCount: 6
+hlsPartCount: 8
 hlsAlwaysRemux: yes
 
 paths:
@@ -178,3 +180,10 @@ In OBS:
 - Stream key: from the creator dashboard.
 
 The creator dashboard auto-generates a playback URL using the HLS base.
+
+Recommended OBS output for lower latency + stability:
+- Rate control: CBR
+- Keyframe interval: 1-2s
+- Video bitrate: 1200-2500 kbps (720p) or 600-1200 kbps (480p)
+- Audio bitrate: 96-128 kbps
+- Preset: veryfast (or faster if CPU constrained)

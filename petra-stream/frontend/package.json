@@ -10,6 +10,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.11.2",
     "@walletconnect/ethereum-provider": "^2.12.2",
     "@walletconnect/modal": "^2.7.0",
     "axios": "^1.5.0",

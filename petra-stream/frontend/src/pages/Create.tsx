@@ -8,6 +8,8 @@ import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import LocalRecorder from "../components/LocalRecorder";
 import ChatPanel from "../components/ChatPanel";
+import { defaultEmotes } from "../components/chat/emotes";
+import WebRTCPublisher from "../components/WebRTCPublisher";
 import SignInModal from "../components/SignInModal";
 import WalletHelpModal from "../components/WalletHelpModal";
 import { AUTH_TOKEN_KEY, getAuthToken, mergeAuthUser, notifyAuthChange, readAuthUser, writeAuth } from "../lib/auth";
@@ -1054,17 +1056,10 @@ export default function CreatePage(): JSX.Element {
               </div>
               {supportsBrowserStudio ? (
                 showPublisher ? (
-                  <div className="rounded-2xl overflow-hidden border border-white/10">
-                    <iframe
-                      title="Broadcast studio"
-                      src={webrtcPublishUrl}
-                      className="w-full h-[360px] sm:h-[420px] lg:h-[520px] bg-black"
-                      allow="camera; microphone; autoplay; clipboard-write; display-capture"
-                    />
-                  </div>
+                  <WebRTCPublisher publishUrl={webrtcPublishUrl} disabled={loading} />
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
-                    Click "Start broadcast" to open the in-browser studio and go live.
+                    Click "Start broadcast" to open the studio controls and choose Camera or Screen.
                   </div>
                 )
               ) : (
@@ -1116,8 +1111,18 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="glass-card rounded-3xl overflow-hidden flex-1 min-h-[420px]">
-                <ChatPanel streamId={String(streamRoomId)} currentUser={chatUser} />
+              <div className="flex-1 min-h-[420px]">
+                <ChatPanel
+                  streamId={String(streamRoomId)}
+                  currentUser={chatUser}
+                  variant="creator"
+                  showModerationPanel
+                  isModerator
+                  currentBadges={["owner"]}
+                  showTimestamps
+                  pinnedNotice="Creator mode: keep chat welcoming while you stream."
+                  emotes={defaultEmotes}
+                />
               </div>
             </div>
           </div>

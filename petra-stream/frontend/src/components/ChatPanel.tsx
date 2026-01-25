@@ -2,77 +2,84 @@
 import React, { useEffect, useRef, useState } from "react";
 import socket from "../lib/socket";
 import { useToast } from "../contexts/ToastContext";
-import EmojiPicker from "./EmojiPicker";
-import MessageBubble from "./MessageBubble";
-import clsx from "clsx";
-
-/**
- * Chat message shape used locally
- */
-export type ChatMsg = {
-  id: string;
-  user: string;
-  text: string;
-  ts: number;
-  system?: boolean;
-  deleted?: boolean;
-  replyToUser?: string;
-  replyToText?: string;
-};
-
-export interface ChatPanelProps {
-  streamId: string;
-  messages?: ChatMsg[]; // initial / seed messages
-  inputId?: string;
-  currentUser?: string; // if not provided we'll use "You"
-  isModerator?: boolean; // enables mod actions UI
-  collapsedOnDesktop?: boolean; // start collapsed on desktop
-}
+import ChatUI, { ChatSendPayload, ChatVariant } from "./chat/ChatUI";
+import { ChatBadge, ChatEmoteMap, ChatMessage, ChatModerationAction } from "./chat/types";
 
 const TYPING_TIMEOUT = 3500;
+const TYPING_THROTTLE = 1200;
 
 function genId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function mergeBadges(existing: ChatBadge[] = [], incoming: ChatBadge[] = []) {
+  const set = new Set<ChatBadge>([...existing, ...incoming]);
+  return Array.from(set);
+}
+
+export interface ChatPanelProps {
+  streamId: string;
+  messages?: ChatMessage[];
+  inputId?: string;
+  currentUser?: string;
+  currentBadges?: ChatBadge[];
+  emotes?: ChatEmoteMap;
+  showTimestamps?: boolean;
+  slowModeMs?: number;
+  pinnedNotice?: string;
+  headerTitle?: string;
+  headerSubtitle?: string;
+  variant?: ChatVariant;
+  canChat?: boolean;
+  isConnected?: boolean;
+  isModerator?: boolean;
+  showModerationPanel?: boolean;
+  collapsedOnDesktop?: boolean;
+  useSocket?: boolean;
+  onSendMessage?: (payload: ChatSendPayload) => Promise<void> | void;
+  onModerateMessage?: (action: ChatModerationAction, id: string) => void;
+  onClearChat?: () => void;
+}
+
 export default function ChatPanel({
   streamId,
-  messages = [],
+  messages,
   inputId,
   currentUser = "You",
+  currentBadges = [],
+  emotes,
+  showTimestamps = false,
+  slowModeMs = 0,
+  pinnedNotice,
+  headerTitle,
+  headerSubtitle,
+  variant = "viewer",
+  canChat = true,
+  isConnected,
   isModerator = false,
+  showModerationPanel = false,
   collapsedOnDesktop = false,
+  useSocket = true,
+  onSendMessage,
+  onModerateMessage,
+  onClearChat,
 }: ChatPanelProps) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>(messages);
-  const [value, setValue] = useState("");
-  const [open, setOpen] = useState(!collapsedOnDesktop);
+  const toast = useToast();
+  const [msgs, setMsgs] = useState<ChatMessage[]>(messages ?? []);
   const [participants, setParticipants] = useState<string[]>([]);
   const [typingUsers, setTypingUsers] = useState<Record<string, number>>({});
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [replyTo, setReplyTo] = useState<{
-    user: string;
-    text: string;
-    id?: string;
-  } | null>(null);
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const toast = useToast();
-  const typingTimer = useRef<number | null>(null);
-
+  const [connected, setConnected] = useState(socket.connected);
   const storageKey = `chat-history:${streamId}`;
+  const typingSentAt = useRef(0);
 
-  // sync incoming socket messages (only when provided)
   useEffect(() => {
-    if (messages && messages.length) {
-      setMsgs(messages);
+    if (!useSocket) {
+      setMsgs(messages ?? []);
     }
-  }, [messages]);
+  }, [messages, useSocket]);
 
-  // load cached history for this stream
   useEffect(() => {
-    if (!streamId) return;
+    if (!useSocket || !streamId) return;
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
@@ -85,58 +92,55 @@ export default function ChatPanel({
     } catch {
       // ignore cache errors
     }
-    if (messages && messages.length) {
-      setMsgs(messages);
-    } else {
-      setMsgs([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamId]);
+    setMsgs([]);
+  }, [storageKey, streamId, useSocket]);
 
-  // persist local history
   useEffect(() => {
-    if (!streamId) return;
+    if (!useSocket || !streamId) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(msgs.slice(-120)));
+      localStorage.setItem(storageKey, JSON.stringify(msgs.slice(-200)));
     } catch {
       // ignore storage errors
     }
-  }, [msgs, streamId, storageKey]);
+  }, [msgs, storageKey, streamId, useSocket]);
 
-  // connect + join room for server-side history/participants
   useEffect(() => {
-    if (!streamId) return;
+    if (!useSocket || !streamId) return;
+    if (!socket.connected) {
+      socket.auth = { user: currentUser };
+      socket.connect();
+    }
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+    };
+  }, [streamId, currentUser, useSocket]);
+
+  useEffect(() => {
+    if (!useSocket || !streamId) return;
     const room = `stream:${streamId}`;
     try {
-      if (socket && typeof socket.connect === "function" && !socket.connected) {
-        socket.auth = { user: currentUser };
-        socket.connect();
-      }
       socket.emit?.("join", { room, user: currentUser });
-    } catch (err) {
-      console.warn("Socket join failed", err);
+    } catch {
+      // ignore
     }
     return () => {
       try {
         socket.emit?.("leave", { room });
-      } catch {}
+      } catch {
+        // ignore
+      }
     };
-  }, [streamId, currentUser]);
+  }, [streamId, currentUser, useSocket]);
 
   useEffect(() => {
-    // handler for incoming messages
-    const onMsg = (payload: any) => {
-      if (!payload) return;
-      if (payload.streamId !== streamId) return;
-      const incoming: ChatMsg = {
-        id: payload.id ?? genId(),
-        user: payload.user ?? "Anon",
-        text: payload.text ?? "",
-        ts: payload.ts ?? Date.now(),
-        system: !!payload.system,
-        replyToUser: payload.replyToUser,
-        replyToText: payload.replyToText,
-      };
+    if (!useSocket || !streamId) return;
+
+    const appendMessage = (incoming: ChatMessage) => {
       setMsgs((s) => {
         if (incoming.id && s.some((m) => m.id === incoming.id)) return s;
         const dupe = s.find(
@@ -150,18 +154,34 @@ export default function ChatPanel({
       });
     };
 
+    const onMsg = (payload: any) => {
+      if (!payload || payload.streamId !== streamId) return;
+      const user = payload.user ?? "Anon";
+      const text = payload.text ?? "";
+      const incoming: ChatMessage = {
+        id: payload.id ?? genId(),
+        user,
+        text,
+        ts: payload.ts ?? Date.now(),
+        system: !!payload.system,
+        replyToUser: payload.replyToUser,
+        replyToText: payload.replyToText,
+        badges: payload.badges,
+      };
+      appendMessage(incoming);
+    };
+
     const onTyping = (payload: any) => {
       if (!payload || payload.streamId !== streamId) return;
       const user = payload.user;
       setTypingUsers((prev) => ({ ...prev, [user]: Date.now() }));
-      // clear after timeout
       window.setTimeout(() => {
         setTypingUsers((prev) => {
-          const t = { ...prev };
-          if (Date.now() - (t[user] || 0) > TYPING_TIMEOUT - 200) {
-            delete t[user];
+          const next = { ...prev };
+          if (Date.now() - (next[user] || 0) > TYPING_TIMEOUT - 200) {
+            delete next[user];
           }
-          return t;
+          return next;
         });
       }, TYPING_TIMEOUT + 200);
     };
@@ -172,9 +192,10 @@ export default function ChatPanel({
     };
 
     const onDeleted = (payload: any) => {
-      // moderation delete - update message by id
       if (!payload || payload.streamId !== streamId) return;
-      setMsgs((s) => s.map((m) => (m.id === payload.id ? { ...m, deleted: true, text: "[message removed]" } : m)));
+      setMsgs((s) =>
+        s.map((m) => (m.id === payload.id ? { ...m, deleted: true, text: "[message removed]" } : m))
+      );
       toast.info("Message removed by moderator", undefined, 2500);
     };
 
@@ -189,6 +210,7 @@ export default function ChatPanel({
         deleted: !!m.deleted,
         replyToUser: m.replyToUser,
         replyToText: m.replyToText,
+        badges: m.badges,
       }));
       if (!sanitized.length) return;
       setMsgs(sanitized);
@@ -200,8 +222,8 @@ export default function ChatPanel({
       socket.on("chat:participants", onParticipants);
       socket.on("chat:moderation:deleted", onDeleted);
       socket.on("chat:history", onHistory);
-    } catch (err) {
-      console.warn("Socket listen failed", err);
+    } catch {
+      // ignore
     }
 
     return () => {
@@ -211,86 +233,63 @@ export default function ChatPanel({
         socket.off("chat:participants", onParticipants);
         socket.off("chat:moderation:deleted", onDeleted);
         socket.off("chat:history", onHistory);
-      } catch (err) {}
-    };
-  }, [streamId, toast]);
-
-  // auto-scroll on new messages (simple)
-  useEffect(() => {
-    const sc = scrollerRef.current;
-    if (!sc) return;
-    sc.scrollTop = sc.scrollHeight + 200;
-  }, [msgs.length]);
-
-  // typing emit (debounced)
-  useEffect(() => {
-    if (!socket || !socket.connected) return;
-    if (!value) return;
-    try {
-      socket.emit("chat:typing", { streamId, user: currentUser });
-    } catch {}
-    // cleanup handled in server echo or other clients
-  }, [value, streamId, currentUser]);
-
-  // suggestion handling: when user types '@' show participants suggestions
-  useEffect(() => {
-    const idx = value.lastIndexOf("@");
-    if (idx >= 0) {
-      const after = value.slice(idx + 1);
-      // at least 1 char to filter
-      if (after.length >= 1) {
-        const set = participants.filter((p) => p.toLowerCase().includes(after.toLowerCase())).slice(0, 6);
-        setSuggestions(set);
-        setShowSuggestions(set.length > 0);
-      } else {
-        setSuggestions(participants.slice(0, 6));
-        setShowSuggestions(true);
+      } catch {
+        // ignore
       }
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [value, participants]);
+    };
+  }, [streamId, toast, useSocket]);
 
-  // send message (optimistic)
-  const send = async () => {
-    const text = value.trim();
-    if (!text) return;
+  const handleSend = async ({ text, replyTo }: ChatSendPayload) => {
+    if (!useSocket) {
+      const id = genId();
+      const nextMsg: ChatMessage = {
+        id,
+        user: currentUser,
+        text,
+        ts: Date.now(),
+        replyToUser: replyTo?.user,
+        replyToText: replyTo?.text,
+        badges: mergeBadges(currentBadges, isModerator ? ["moderator"] : []),
+      };
+      if (!messages) {
+        setMsgs((s) => [...s, nextMsg]);
+      }
+      await onSendMessage?.({ text, replyTo });
+      return;
+    }
     const id = genId();
-    const newMsg: ChatMsg = {
+    const nextMsg: ChatMessage = {
       id,
       user: currentUser,
       text,
       ts: Date.now(),
       replyToUser: replyTo?.user,
       replyToText: replyTo?.text,
+      badges: mergeBadges(currentBadges, isModerator ? ["moderator"] : []),
     };
-    setMsgs((s) => [...s, newMsg]); // optimistic
-    setValue("");
-    setShowEmoji(false);
-    setReplyTo(null);
-    // emit
+    setMsgs((s) => [...s, nextMsg]);
     try {
-      if (socket && socket.connected) {
-        socket.emit("chat:message", {
-          streamId,
-          id,
-          user: currentUser,
-          text,
-          ts: newMsg.ts,
-          replyToUser: replyTo?.user,
-          replyToText: replyTo?.text,
-        });
-      } else {
-        toast.info("You are offline - message saved locally", undefined, 3000);
-      }
+      socket.emit("chat:message", {
+        streamId,
+        id,
+        user: currentUser,
+        text,
+        ts: nextMsg.ts,
+        replyToUser: replyTo?.user,
+        replyToText: replyTo?.text,
+        badges: nextMsg.badges,
+      });
     } catch (err) {
       console.error("send failed", err);
       toast.error("Failed to send message", undefined, 3000);
     }
   };
 
-  // moderation actions
-  const moderate = async (action: "delete" | "timeout", msgId: string) => {
+  const handleModeration = (action: ChatModerationAction, msgId: string) => {
+    if (!useSocket) {
+      onModerateMessage?.(action, msgId);
+      return;
+    }
     if (!isModerator) return;
     try {
       socket.emit("chat:moderate", { streamId, action, id: msgId });
@@ -298,217 +297,62 @@ export default function ChatPanel({
       if (action === "delete") {
         setMsgs((s) => s.map((m) => (m.id === msgId ? { ...m, deleted: true, text: "[removed by moderator]" } : m)));
       }
+      if (action === "clear") {
+        setMsgs([]);
+      }
     } catch (err) {
       console.error("moderate failed", err);
       toast.error("Moderator action failed", undefined, 2500);
     }
   };
 
-  // UI helpers
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      inputRef.current?.focus();
+  const handleClear = () => {
+    if (!useSocket) {
+      onClearChat?.();
+      return;
+    }
+    handleModeration("clear", "bulk");
+  };
+
+  const handleTyping = (value: string) => {
+    if (!useSocket || !value.trim()) return;
+    const now = Date.now();
+    if (now - typingSentAt.current < TYPING_THROTTLE) return;
+    typingSentAt.current = now;
+    try {
+      socket.emit("chat:typing", { streamId, user: currentUser });
+    } catch {
+      // ignore
     }
   };
 
-  const insertSuggestion = (name: string) => {
-    // replace last @fragment with the selection
-    const idx = value.lastIndexOf("@");
-    if (idx >= 0) {
-      const head = value.slice(0, idx + 1);
-      const tail = value.slice(idx + 1);
-      // find end of mention token (whitespace or end)
-      const match = tail.match(/^[^\s]*/);
-      const endIdx = match ? match[0].length : 0;
-      const remaining = tail.slice(endIdx);
-      const next = `${head}${name} ${remaining}`; // add a space after mention
-      setValue(next);
-      setShowSuggestions(false);
-      inputRef.current?.focus();
-    } else {
-      setValue((v) => v + `@${name} `);
-      setShowSuggestions(false);
-      inputRef.current?.focus();
-    }
-  };
-
-  // toggle open (mobile: bottom sheet; desktop: collapse to bar)
-  const toggleOpen = () => setOpen((s) => !s);
-
-  const typingList = Object.keys(typingUsers).filter((u) => u !== currentUser);
+  const resolvedMessages = useSocket ? msgs : messages ?? msgs;
+  const resolvedConnected = useSocket ? connected : isConnected ?? true;
 
   return (
-    <div
-      className={clsx(
-        "relative flex flex-col",
-        // keep small height on mobile by default, expand when open
-        open ? "h-full" : "h-14"
-      )}
-      aria-label="Chat panel"
-    >
-      {/* Header: collapse toggle */}
-      <div className="flex items-center justify-between gap-3 p-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleOpen}
-            aria-expanded={open}
-            className="inline-flex items-center gap-2 rounded-md p-2 bg-surface border"
-            style={{ borderColor: "rgba(255,255,255,0.06)" }}
-            title={open ? "Collapse chat" : "Open chat"}
-          >
-            <svg className="h-5 w-5 text-text" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15a2 2 0 01-2 2H7l-6 4V5a2 2 0 012-2h16a2 2 0 012 2z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span className="text-sm font-medium text-text">Chat</span>
-            <span className="text-xs subtle">({msgs.length})</span>
-          </button>
-
-          <div className="text-xs subtle hidden sm:inline">Live - {participants.length} here</div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {typingList.length ? <div className="text-xs subtle pr-2">{typingList.join(", ")} typing...</div> : null}
-          <button
-            onClick={() => {
-              // focus input
-              inputRef.current?.focus();
-            }}
-            className="px-2 py-1 rounded-md border"
-            title="Focus chat (c)"
-          >
-            Focus
-          </button>
-        </div>
-      </div>
-
-      {/* body */}
-      <div className={clsx("flex-1 overflow-hidden transition-all", open ? "block" : "hidden sm:block")}>
-        <div ref={scrollerRef} className="px-3 pb-3 overflow-y-auto space-y-3" style={{ maxHeight: "min(60vh, 60vh)" }}>
-          {/* message grouping render: group contiguous messages by same user within 5 minutes */}
-          {msgs.length ? (
-            (() => {
-              const groups: Array<{ user: string; items: ChatMsg[] }> = [];
-              msgs.forEach((m) => {
-                const last = groups[groups.length - 1];
-                if (!last) {
-                  groups.push({ user: m.user, items: [m] });
-                } else {
-                  const prev = last.items[last.items.length - 1];
-                  // group if same user and within 5 minutes
-                  if (m.user === last.user && Math.abs(m.ts - prev.ts) < 1000 * 60 * 5) {
-                    last.items.push(m);
-                  } else {
-                    groups.push({ user: m.user, items: [m] });
-                  }
-                }
-              });
-              return groups.map((g, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="text-xs font-semibold text-text">{g.user}</div>
-                  <div className="space-y-1">
-                    {g.items.map((m) => (
-                      <div key={m.id}>
-                        <MessageBubble
-                          msg={m}
-                          mine={m.user === currentUser}
-                          onDelete={() => moderate("delete", m.id)}
-                          onTimeout={() => moderate("timeout", m.id)}
-                          isModerator={isModerator}
-                          onReply={() => {
-                            setReplyTo({ user: m.user, text: m.text, id: m.id });
-                            inputRef.current?.focus();
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ));
-            })()
-          ) : (
-            <div className="text-center text-subtle text-sm py-6">No messages yet - be the first to say hi.</div>
-          )}
-        </div>
-
-        {/* input area */}
-        <div className="p-3 border-t border-white/6 bg-surface sticky bottom-0">
-          {replyTo ? (
-            <div className="mb-2 flex items-center justify-between rounded-md border border-white/10 bg-bg/20 px-3 py-2 text-xs">
-              <div className="text-text">
-                Replying to <span className="font-semibold">@{replyTo.user}</span>:{" "}
-                <span className="subtle">{replyTo.text.slice(0, 80)}</span>
-              </div>
-              <button
-                className="text-subtle hover:text-text"
-                onClick={() => setReplyTo(null)}
-                aria-label="Cancel reply"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-md p-2"
-              onClick={() => setShowEmoji((s) => !s)}
-              aria-label="Open emoji picker"
-              title="Emoji"
-            >
-              Emoji
-            </button>
-
-            <div className="flex-1 relative">
-              <input
-                id={inputId}
-                ref={inputRef}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Say something... (Enter to send, Shift+Enter newline)"
-                className="w-full rounded-lg p-2 bg-bg/10 text-text outline-none border border-white/6"
-              />
-
-              {/* suggestions */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 mt-1 w-full bg-surface rounded shadow-md z-40 border border-white/6">
-                  {suggestions.map((sug) => (
-                    <button
-                      key={sug}
-                      onClick={() => insertSuggestion(sug)}
-                      className="w-full text-left px-3 py-2 hover:bg-surface/80 text-text text-sm"
-                    >
-                      @{sug}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button onClick={send} className="btn-primary px-3 py-2 rounded-md" aria-label="Send message">
-              Send
-            </button>
-          </div>
-
-          {/* emoji picker */}
-          {showEmoji && (
-            <div className="mt-2 z-50">
-              <EmojiPicker
-                onPick={(emoji) => {
-                  // insert at cursor position (simple append)
-                  setValue((v) => v + emoji);
-                  setShowEmoji(false);
-                  inputRef.current?.focus();
-                }}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <ChatUI
+      streamId={streamId}
+      messages={resolvedMessages}
+      currentUser={currentUser}
+      participants={participants}
+      typingUsers={Object.keys(typingUsers)}
+      inputId={inputId}
+      emotes={emotes}
+      showTimestamps={showTimestamps}
+      slowModeMs={slowModeMs}
+      pinnedNotice={pinnedNotice}
+      headerTitle={headerTitle}
+      headerSubtitle={headerSubtitle}
+      variant={variant}
+      isConnected={resolvedConnected}
+      canChat={canChat}
+      isModerator={isModerator}
+      showModerationPanel={showModerationPanel}
+      collapsedOnDesktop={collapsedOnDesktop}
+      onSendMessage={handleSend}
+      onModerateMessage={handleModeration}
+      onClearChat={handleClear}
+      onTyping={handleTyping}
+    />
   );
 }
-

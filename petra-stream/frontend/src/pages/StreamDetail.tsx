@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import api from "../lib/api";
 import TipModal from "../components/TipModal";
 import ChatPanel from "../components/ChatPanel";
+import { defaultEmotes } from "../components/chat/emotes";
 import ViewerList from "../components/ViewerList";
 import Player, { PlayerHandle } from "../components/Player";
 import StreamCard from "../components/StreamCard";
@@ -751,12 +752,16 @@ export default function StreamDetail(): JSX.Element {
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[360px]">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-text">Chat</h3>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">Live</span>
-                </div>
                 <div className="flex-1 min-h-[320px]">
-                  <ChatPanel streamId={String(streamId)} inputId={chatInputId} currentUser={currentUser} />
+                  <ChatPanel
+                    streamId={String(streamId)}
+                    inputId={chatInputId}
+                    currentUser={currentUser}
+                    variant="viewer"
+                    pinnedNotice="Be kind. Respect the community and support the creator."
+                    emotes={defaultEmotes}
+                    slowModeMs={1500}
+                  />
                 </div>
               </div>
 

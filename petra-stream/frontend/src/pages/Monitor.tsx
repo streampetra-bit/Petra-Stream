@@ -6,6 +6,7 @@ import ChatPanel from "../components/ChatPanel";
 import ViewerList from "../components/ViewerList";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
+import { defaultEmotes } from "../components/chat/emotes";
 
 export default function Monitor(): JSX.Element {
   const toast = useToast();
@@ -127,8 +128,17 @@ export default function Monitor(): JSX.Element {
           </div>
 
           <div className="glass-card p-4">
-            <h3 className="text-sm font-semibold mb-3">Live chat</h3>
-            <ChatPanel streamId={String(streamId)} currentUser={currentUser} />
+            <ChatPanel
+              streamId={String(streamId)}
+              currentUser={currentUser}
+              variant="monitor"
+              showModerationPanel
+              isModerator
+              currentBadges={["moderator"]}
+              showTimestamps
+              pinnedNotice="Monitoring mode: keep chat healthy and responsive."
+              emotes={defaultEmotes}
+            />
           </div>
         </section>
 
