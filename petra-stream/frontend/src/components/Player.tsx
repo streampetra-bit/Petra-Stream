@@ -83,14 +83,14 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          // tuned for smoother live playback while keeping latency reasonable
-          lowLatencyMode: true,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 10,
-          maxLiveSyncPlaybackRate: 1.2,
-          maxBufferLength: 20,
+          // tuned for stable fMP4 playback over shaky networks
+          lowLatencyMode: false,
+          liveSyncDurationCount: 4,
+          liveMaxLatencyDurationCount: 12,
+          maxLiveSyncPlaybackRate: 1.1,
+          maxBufferLength: 30,
           maxMaxBufferLength: 30,
-          maxBufferHole: 1,
+          maxBufferHole: 1.5,
           backBufferLength: 60,
           capLevelToPlayerSize: true,
         });
@@ -262,7 +262,7 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
       {src ? (
         <video
           ref={videoRef}
-          className="w-full h-full bg-black"
+          className="w-full h-full bg-black object-cover"
           src={src}
           poster={poster}
           controls={false}

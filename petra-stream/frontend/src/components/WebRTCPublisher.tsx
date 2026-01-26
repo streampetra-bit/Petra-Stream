@@ -4,7 +4,11 @@ import clsx from "clsx";
 import { useToast } from "../contexts/ToastContext";
 
 type PublishMode = "camera" | "screen";
-type EncodingProfile = { maxBitrate: number; maxFramerate: number };
+type EncodingProfile = {
+  maxBitrate?: number;
+  maxFramerate?: number;
+  degradationPreference?: RTCRtpDegradationPreference;
+};
 
 type WebRTCPublisherProps = {
   publishUrl: string;
@@ -31,8 +35,30 @@ function normalizeWhipUrl(input: string) {
   }
 }
 
-const CAMERA_PROFILE: EncodingProfile = { maxBitrate: 800_000, maxFramerate: 24 };
-const SCREEN_PROFILE: EncodingProfile = { maxBitrate: 800_000, maxFramerate: 15 };
+const CAMERA_PROFILE: EncodingProfile = {
+  maxBitrate: 600_000,
+  maxFramerate: 20,
+  degradationPreference: "maintain-framerate",
+};
+const SCREEN_PROFILE: EncodingProfile = {
+  maxBitrate: 600_000,
+  maxFramerate: 15,
+  degradationPreference: "maintain-framerate",
+};
+const AUDIO_PROFILE: EncodingProfile = { maxBitrate: 64_000 };
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    width: { ideal: 640 },
+    height: { ideal: 360 },
+    frameRate: { ideal: 20, max: 20 },
+  },
+  audio: true,
+};
+
+const SCREEN_CONSTRAINTS = (enableAudio: boolean): DisplayMediaStreamConstraints => ({
+  video: { frameRate: { ideal: 15, max: 15 } },
+  audio: enableAudio,
+});
 
 async function waitForIceComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
@@ -85,8 +111,15 @@ export default function WebRTCPublisher({
     if (!sender || !sender.getParameters) return;
     const params = sender.getParameters();
     if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-    params.encodings[0].maxBitrate = profile.maxBitrate;
-    params.encodings[0].maxFramerate = profile.maxFramerate;
+    if (typeof profile.maxBitrate === "number") {
+      params.encodings[0].maxBitrate = profile.maxBitrate;
+    }
+    if (typeof profile.maxFramerate === "number") {
+      params.encodings[0].maxFramerate = profile.maxFramerate;
+    }
+    if (profile.degradationPreference) {
+      params.degradationPreference = profile.degradationPreference;
+    }
     try {
       await sender.setParameters(params);
     } catch {
@@ -105,11 +138,11 @@ export default function WebRTCPublisher({
 
   async function getCapture(nextMode: PublishMode) {
     if (nextMode === "camera") {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
       return { stream, audioTrack: stream.getAudioTracks()[0] || null };
     }
 
-    const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: shareSystemAudio });
+    const display = await navigator.mediaDevices.getDisplayMedia(SCREEN_CONSTRAINTS(shareSystemAudio));
     const videoTrack = display.getVideoTracks()[0] || null;
     let audioTrack = display.getAudioTracks()[0] || null;
 
@@ -134,8 +167,8 @@ export default function WebRTCPublisher({
     setStatus("Switching source...");
     const stream =
       nextMode === "screen"
-        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: shareSystemAudio })
-        : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        ? await navigator.mediaDevices.getDisplayMedia(SCREEN_CONSTRAINTS(shareSystemAudio))
+        : await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
 
     const nextVideo = stream.getVideoTracks()[0];
     let nextAudio = stream.getAudioTracks()[0] || audioTrackRef.current;
@@ -159,6 +192,7 @@ export default function WebRTCPublisher({
       const audioSender = getSender("audio");
       if (audioSender) {
         await audioSender.replaceTrack(nextAudio);
+        await applyEncoding(audioSender, AUDIO_PROFILE);
       }
     }
 
@@ -223,7 +257,8 @@ export default function WebRTCPublisher({
         await applyEncoding(videoTx.sender, nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE);
       }
       if (streamAudioTrack) {
-        pc.addTransceiver(streamAudioTrack, { direction: "sendonly" });
+        const audioTx = pc.addTransceiver(streamAudioTrack, { direction: "sendonly" });
+        await applyEncoding(audioTx.sender, AUDIO_PROFILE);
       }
       pcRef.current = pc;
 
@@ -392,7 +427,7 @@ export default function WebRTCPublisher({
       </div>
 
       <div className="aspect-video bg-black">
-        <video ref={videoRef} className="w-full h-full" muted playsInline />
+        <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
       </div>
 
       {error ? (
