@@ -86,11 +86,25 @@ export default function WebRTCPublisher({
   const streamRef = useRef<MediaStream | null>(null);
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
   const sessionUrlRef = useRef<string | null>(null);
+  const statsTimerRef = useRef<number | null>(null);
+  const lastStatsRef = useRef<{ videoBytes: number; timestamp: number } | null>(null);
+  const lastLossRef = useRef<{ lost: number; received: number } | null>(null);
+  const bitrateRef = useRef<number>(CAMERA_PROFILE.maxBitrate ?? 600_000);
+  const bitrateChangeRef = useRef<number>(0);
+  const qualityTrendRef = useRef<{ good: number; bad: number }>({ good: 0, bad: 0 });
   const [mode, setMode] = useState<PublishMode>(defaultMode);
   const [shareSystemAudio, setShareSystemAudio] = useState(false);
   const [status, setStatus] = useState("Idle");
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [health, setHealth] = useState<{
+    bitrateKbps?: number;
+    fps?: number;
+    packetsLost?: number;
+    jitterMs?: number;
+    rttMs?: number;
+    qualityLimitationReason?: string;
+  } | null>(null);
 
   const whipUrl = normalizeWhipUrl(publishUrl);
 
@@ -100,6 +114,159 @@ export default function WebRTCPublisher({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!publishing) {
+      if (statsTimerRef.current) {
+        window.clearInterval(statsTimerRef.current);
+        statsTimerRef.current = null;
+      }
+      setHealth(null);
+      lastStatsRef.current = null;
+      lastLossRef.current = null;
+      qualityTrendRef.current = { good: 0, bad: 0 };
+      return;
+    }
+
+    const pollStats = async () => {
+      const pc = pcRef.current;
+      if (!pc) return;
+      try {
+        const stats = await pc.getStats();
+        let outboundVideo: any = null;
+        let remoteVideo: any = null;
+
+        stats.forEach((report) => {
+          const kind = (report as any).kind || (report as any).mediaType;
+          if (report.type === "outbound-rtp" && kind === "video" && !(report as any).isRemote) {
+            outboundVideo = report;
+          }
+          if (report.type === "remote-inbound-rtp" && kind === "video") {
+            remoteVideo = report;
+          }
+        });
+
+        const now = Date.now();
+        let bitrateKbps: number | undefined;
+        if (outboundVideo?.bytesSent != null) {
+          const prev = lastStatsRef.current;
+          if (prev) {
+            const deltaBytes = outboundVideo.bytesSent - prev.videoBytes;
+            const deltaTime = now - prev.timestamp;
+            if (deltaTime > 0) {
+              bitrateKbps = Math.max(0, (deltaBytes * 8) / deltaTime);
+            }
+          }
+          lastStatsRef.current = { videoBytes: outboundVideo.bytesSent, timestamp: now };
+        }
+
+        const fps = outboundVideo?.framesPerSecond ?? undefined;
+        const packetsLost = remoteVideo?.packetsLost ?? undefined;
+        const packetsReceived = remoteVideo?.packetsReceived ?? undefined;
+        let lossRate: number | undefined;
+        if (typeof packetsLost === "number" && typeof packetsReceived === "number") {
+          const prev = lastLossRef.current;
+          if (prev) {
+            const deltaLost = packetsLost - prev.lost;
+            const deltaRecv = packetsReceived - prev.received;
+            const total = deltaLost + deltaRecv;
+            if (total > 0) {
+              lossRate = deltaLost / total;
+            }
+          }
+          lastLossRef.current = { lost: packetsLost, received: packetsReceived };
+        }
+        const jitterMs =
+          remoteVideo?.jitter != null ? Math.round(remoteVideo.jitter * 1000) : undefined;
+        const rttMs =
+          remoteVideo?.roundTripTime != null
+            ? Math.round(remoteVideo.roundTripTime * 1000)
+            : undefined;
+        const qualityLimitationReason = outboundVideo?.qualityLimitationReason ?? undefined;
+
+        setHealth({
+          bitrateKbps: bitrateKbps ? Math.round(bitrateKbps) : undefined,
+          fps: fps ? Math.round(fps) : undefined,
+          packetsLost,
+          jitterMs,
+          rttMs,
+          qualityLimitationReason,
+        });
+        await maybeAdjustBitrate({ lossRate, jitterMs, rttMs });
+      } catch {
+        // ignore stats errors
+      }
+    };
+
+    pollStats();
+    statsTimerRef.current = window.setInterval(pollStats, 2000);
+
+    return () => {
+      if (statsTimerRef.current) {
+        window.clearInterval(statsTimerRef.current);
+        statsTimerRef.current = null;
+      }
+    };
+  }, [publishing, mode]);
+
+  async function maybeAdjustBitrate({
+    lossRate,
+    jitterMs,
+    rttMs,
+  }: {
+    lossRate?: number;
+    jitterMs?: number;
+    rttMs?: number;
+  }) {
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    const now = Date.now();
+    const cooldownMs = 6000;
+    if (now - bitrateChangeRef.current < cooldownMs) return;
+
+    const highLoss = lossRate != null && lossRate > 0.03;
+    const mildLoss = lossRate != null && lossRate > 0.015;
+    const highRtt = rttMs != null && rttMs > 400;
+    const highJitter = jitterMs != null && jitterMs > 30;
+    const goodNetwork =
+      (lossRate == null || lossRate < 0.005) &&
+      (rttMs == null || rttMs < 200) &&
+      (jitterMs == null || jitterMs < 20);
+
+    if (highLoss || highRtt || highJitter || mildLoss) {
+      qualityTrendRef.current = { good: 0, bad: qualityTrendRef.current.bad + 1 };
+    } else if (goodNetwork) {
+      qualityTrendRef.current = { bad: 0, good: qualityTrendRef.current.good + 1 };
+    } else {
+      qualityTrendRef.current = { bad: 0, good: 0 };
+    }
+
+    const minBitrate = 350_000;
+    const maxBitrate = mode === "screen" ? 900_000 : 850_000;
+    const current = bitrateRef.current;
+
+    if (qualityTrendRef.current.bad >= 2 && current > minBitrate) {
+      const next = Math.max(minBitrate, Math.round(current * 0.85));
+      await setVideoBitrate(next);
+      qualityTrendRef.current = { good: 0, bad: 0 };
+      return;
+    }
+
+    if (qualityTrendRef.current.good >= 3 && current < maxBitrate) {
+      const next = Math.min(maxBitrate, Math.round(current * 1.1));
+      await setVideoBitrate(next);
+      qualityTrendRef.current = { good: 0, bad: 0 };
+    }
+  }
+
+  async function setVideoBitrate(target: number) {
+    const videoSender = getSender("video");
+    if (!videoSender) return;
+    bitrateRef.current = target;
+    await applyEncoding(videoSender, { maxBitrate: target });
+    bitrateChangeRef.current = Date.now();
+  }
 
   function getSender(kind: "audio" | "video") {
     const pc = pcRef.current;
@@ -185,7 +352,9 @@ export default function WebRTCPublisher({
       const videoSender = getSender("video");
       if (videoSender) {
         await videoSender.replaceTrack(nextVideo);
-        await applyEncoding(videoSender, nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE);
+        const profile = nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE;
+        bitrateRef.current = profile.maxBitrate ?? bitrateRef.current;
+        await applyEncoding(videoSender, profile);
       }
     }
     if (nextAudio) {
@@ -254,7 +423,9 @@ export default function WebRTCPublisher({
       if (videoTrack) {
         const videoTx = pc.addTransceiver(videoTrack, { direction: "sendonly" });
         preferH264(videoTx);
-        await applyEncoding(videoTx.sender, nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE);
+        const profile = nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE;
+        bitrateRef.current = profile.maxBitrate ?? bitrateRef.current;
+        await applyEncoding(videoTx.sender, profile);
       }
       if (streamAudioTrack) {
         const audioTx = pc.addTransceiver(streamAudioTrack, { direction: "sendonly" });
@@ -342,6 +513,7 @@ export default function WebRTCPublisher({
     if (publishing) {
       setPublishing(false);
       setStatus("Stopped");
+      setHealth(null);
       onStopped?.();
     } else {
       setStatus("Idle");
@@ -405,6 +577,15 @@ export default function WebRTCPublisher({
           <span className={clsx("px-2 py-1 rounded-full border text-[10px] uppercase tracking-widest", publishing ? "border-emerald-400/40 text-emerald-200" : "border-white/10 text-white/60")}>
             {status}
           </span>
+          {health ? (
+            <div className="hidden sm:flex items-center gap-2 text-[10px] text-white/70">
+              <span>Net</span>
+              <span>{health.bitrateKbps ? `${health.bitrateKbps} kbps` : "--"}</span>
+              <span>{health.fps ? `${health.fps} fps` : "--"}</span>
+              <span>{health.packetsLost != null ? `${health.packetsLost} lost` : "--"}</span>
+              <span>{health.rttMs != null ? `${health.rttMs} ms` : "--"}</span>
+            </div>
+          ) : null}
           {publishing ? (
             <button
               type="button"
@@ -438,3 +619,4 @@ export default function WebRTCPublisher({
     </div>
   );
 }
+
