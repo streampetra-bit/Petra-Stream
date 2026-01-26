@@ -9,6 +9,14 @@ type EncodingProfile = {
   maxFramerate?: number;
   degradationPreference?: RTCRtpDegradationPreference;
 };
+type FilterPreset = "none" | "warm" | "crisp" | "soft" | "vintage" | "custom";
+type FilterSettings = {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  sharpness: number;
+};
 
 type WebRTCPublisherProps = {
   publishUrl: string;
@@ -60,6 +68,22 @@ const SCREEN_CONSTRAINTS = (enableAudio: boolean): DisplayMediaStreamConstraints
   audio: enableAudio,
 });
 
+const DEFAULT_FILTERS: FilterSettings = {
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  warmth: 0,
+  sharpness: 0,
+};
+
+const FILTER_PRESETS: Record<Exclude<FilterPreset, "custom">, FilterSettings> = {
+  none: { ...DEFAULT_FILTERS },
+  warm: { brightness: 1.05, contrast: 1.05, saturation: 1.15, warmth: 0.2, sharpness: 0.05 },
+  crisp: { brightness: 1.02, contrast: 1.15, saturation: 1.1, warmth: 0, sharpness: 0.2 },
+  soft: { brightness: 1.05, contrast: 0.9, saturation: 0.95, warmth: 0.05, sharpness: 0 },
+  vintage: { brightness: 1.02, contrast: 0.9, saturation: 0.8, warmth: 0.3, sharpness: 0 },
+};
+
 async function waitForIceComplete(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === "complete") return;
   await new Promise<void>((resolve) => {
@@ -85,6 +109,12 @@ export default function WebRTCPublisher({
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const cameraSourceRef = useRef<MediaStream | null>(null);
+  const filterVideoRef = useRef<HTMLVideoElement | null>(null);
+  const filterCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const filterLoopRef = useRef<number | null>(null);
+  const filterStreamRef = useRef<MediaStream | null>(null);
+  const filtersRef = useRef<FilterSettings>(DEFAULT_FILTERS);
   const sessionUrlRef = useRef<string | null>(null);
   const statsTimerRef = useRef<number | null>(null);
   const lastStatsRef = useRef<{ videoBytes: number; timestamp: number } | null>(null);
@@ -94,6 +124,9 @@ export default function WebRTCPublisher({
   const qualityTrendRef = useRef<{ good: number; bad: number }>({ good: 0, bad: 0 });
   const [mode, setMode] = useState<PublishMode>(defaultMode);
   const [shareSystemAudio, setShareSystemAudio] = useState(false);
+  const [filtersEnabled, setFiltersEnabled] = useState(true);
+  const [preset, setPreset] = useState<FilterPreset>("none");
+  const [filters, setFilters] = useState<FilterSettings>(DEFAULT_FILTERS);
   const [status, setStatus] = useState("Idle");
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +147,10 @@ export default function WebRTCPublisher({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   useEffect(() => {
     if (!publishing) {
@@ -208,6 +245,87 @@ export default function WebRTCPublisher({
       }
     };
   }, [publishing, mode]);
+
+  function applyPreset(nextPreset: FilterPreset) {
+    if (nextPreset === "custom") {
+      setPreset("custom");
+      return;
+    }
+    setPreset(nextPreset);
+    setFilters(FILTER_PRESETS[nextPreset]);
+  }
+
+  function updateFilter<K extends keyof FilterSettings>(key: K, value: number) {
+    setPreset("custom");
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function buildFilterString(settings: FilterSettings) {
+    const brightness = clamp(settings.brightness, 0.6, 1.5);
+    const contrast = clamp(settings.contrast, 0.6, 1.5);
+    const saturation = clamp(settings.saturation, 0.5, 1.8);
+    const warmth = clamp(settings.warmth, 0, 0.5);
+    return `brightness(${brightness}) contrast(${contrast}) saturate(${saturation}) sepia(${warmth})`;
+  }
+
+  function shouldUseFilters(settings: FilterSettings) {
+    if (!filtersEnabled) return false;
+    return (
+      Math.abs(settings.brightness - 1) > 0.01 ||
+      Math.abs(settings.contrast - 1) > 0.01 ||
+      Math.abs(settings.saturation - 1) > 0.01 ||
+      settings.warmth > 0.01 ||
+      settings.sharpness > 0.01
+    );
+  }
+
+  function stopFilterPipeline() {
+    if (filterLoopRef.current) {
+      window.cancelAnimationFrame(filterLoopRef.current);
+      filterLoopRef.current = null;
+    }
+    filterStreamRef.current?.getTracks().forEach((track) => track.stop());
+    filterStreamRef.current = null;
+  }
+
+  function cleanupCameraSource() {
+    stopFilterPipeline();
+    if (filterVideoRef.current) {
+      filterVideoRef.current.pause();
+      filterVideoRef.current.srcObject = null;
+    }
+    cameraSourceRef.current?.getTracks().forEach((track) => track.stop());
+    cameraSourceRef.current = null;
+  }
+
+  function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function applySharpen(ctx: CanvasRenderingContext2D, width: number, height: number, amount: number) {
+    const strength = clamp(amount, 0, 0.6);
+    if (strength < 0.05) return;
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+    const copy = new Uint8ClampedArray(data);
+    const center = 1 + 4 * strength;
+    const side = -strength;
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const idx = (y * width + x) * 4;
+        for (let c = 0; c < 3; c += 1) {
+          const value =
+            copy[idx + c] * center +
+            copy[idx + c - 4] * side +
+            copy[idx + c + 4] * side +
+            copy[idx + c - width * 4] * side +
+            copy[idx + c + width * 4] * side;
+          data[idx + c] = clamp(value, 0, 255);
+        }
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
 
   async function maybeAdjustBitrate({
     lossRate,
@@ -305,8 +423,25 @@ export default function WebRTCPublisher({
 
   async function getCapture(nextMode: PublishMode) {
     if (nextMode === "camera") {
-      const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
-      return { stream, audioTrack: stream.getAudioTracks()[0] || null };
+      const cameraStream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+      cameraSourceRef.current = cameraStream;
+      const audioTrack = cameraStream.getAudioTracks()[0] || null;
+      const rawVideoTrack = cameraStream.getVideoTracks()[0] || null;
+
+      let stream: MediaStream;
+      if (rawVideoTrack && shouldUseFilters(filtersRef.current)) {
+        const filtered = await createFilteredStream(cameraStream);
+        filterStreamRef.current = filtered.stream;
+        stream = new MediaStream();
+        stream.addTrack(filtered.track);
+        if (audioTrack) stream.addTrack(audioTrack);
+      } else {
+        stream = new MediaStream();
+        if (rawVideoTrack) stream.addTrack(rawVideoTrack);
+        if (audioTrack) stream.addTrack(audioTrack);
+      }
+
+      return { stream, audioTrack };
     }
 
     const display = await navigator.mediaDevices.getDisplayMedia(SCREEN_CONSTRAINTS(shareSystemAudio));
@@ -328,16 +463,59 @@ export default function WebRTCPublisher({
     return { stream: combined, audioTrack };
   }
 
+  async function createFilteredStream(cameraStream: MediaStream) {
+    const rawVideo = filterVideoRef.current;
+    const canvas = filterCanvasRef.current;
+    if (!rawVideo || !canvas) {
+      throw new Error("Filter pipeline not ready");
+    }
+
+    rawVideo.srcObject = cameraStream;
+    rawVideo.muted = true;
+    await rawVideo.play().catch(() => {});
+
+    const track = cameraStream.getVideoTracks()[0];
+    const settings = track?.getSettings();
+    const width = settings?.width ?? 640;
+    const height = settings?.height ?? 360;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Canvas not supported");
+    }
+
+    const draw = () => {
+      if (!rawVideo.srcObject) return;
+      ctx.filter = buildFilterString(filtersRef.current);
+      ctx.drawImage(rawVideo, 0, 0, width, height);
+      applySharpen(ctx, width, height, filtersRef.current.sharpness);
+      filterLoopRef.current = window.requestAnimationFrame(draw);
+    };
+    draw();
+
+    const filteredStream = canvas.captureStream(CAMERA_PROFILE.maxFramerate ?? 20);
+    const filteredTrack = filteredStream.getVideoTracks()[0];
+    return { stream: filteredStream, track: filteredTrack };
+  }
+
   async function replaceTracks(nextMode: PublishMode) {
     const pc = pcRef.current;
     if (!pc) return;
     setStatus("Switching source...");
+    if (nextMode === "camera") {
+      cleanupCameraSource();
+    }
     const stream =
       nextMode === "screen"
         ? await navigator.mediaDevices.getDisplayMedia(SCREEN_CONSTRAINTS(shareSystemAudio))
         : await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
 
-    const nextVideo = stream.getVideoTracks()[0];
+    if (nextMode === "screen") {
+      cleanupCameraSource();
+    }
+
+    let nextVideo = stream.getVideoTracks()[0];
     let nextAudio = stream.getAudioTracks()[0] || audioTrackRef.current;
     if (!nextAudio) {
       try {
@@ -351,6 +529,12 @@ export default function WebRTCPublisher({
     if (nextVideo) {
       const videoSender = getSender("video");
       if (videoSender) {
+        if (nextMode === "camera" && shouldUseFilters(filtersRef.current)) {
+          cameraSourceRef.current = stream;
+          const filtered = await createFilteredStream(stream);
+          filterStreamRef.current = filtered.stream;
+          nextVideo = filtered.track;
+        }
         await videoSender.replaceTrack(nextVideo);
         const profile = nextMode === "screen" ? SCREEN_PROFILE : CAMERA_PROFILE;
         bitrateRef.current = profile.maxBitrate ?? bitrateRef.current;
@@ -385,6 +569,9 @@ export default function WebRTCPublisher({
     if (nextAudio) combined.addTrack(nextAudio);
     streamRef.current = combined;
     audioTrackRef.current = nextAudio || null;
+    if (nextMode === "camera" && stream) {
+      cameraSourceRef.current = stream;
+    }
 
     if (nextMode === "screen" && nextVideo) {
       nextVideo.addEventListener("ended", () => {
@@ -496,6 +683,7 @@ export default function WebRTCPublisher({
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     audioTrackRef.current = null;
+    cleanupCameraSource();
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
@@ -607,9 +795,112 @@ export default function WebRTCPublisher({
         </div>
       </div>
 
+      {mode === "camera" ? (
+        <div className="px-4 py-3 border-b border-white/10 text-xs text-white/70">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filtersEnabled}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setFiltersEnabled(next);
+                  if (publishing && mode === "camera") {
+                    void replaceTracks("camera");
+                  }
+                }}
+                className="rounded border-white/20 bg-transparent"
+              />
+              <span className="text-white/60 uppercase tracking-widest text-[10px]">
+                Enable filters
+              </span>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-white/60 uppercase tracking-widest text-[10px]">Preset</span>
+              <select
+                value={preset}
+                onChange={(e) => applyPreset(e.target.value as FilterPreset)}
+                disabled={!filtersEnabled}
+                className="bg-black/40 border border-white/10 rounded-md px-2 py-1 text-[11px]"
+              >
+                <option value="none">None</option>
+                <option value="warm">Warm</option>
+                <option value="crisp">Crisp</option>
+                <option value="soft">Soft</option>
+                <option value="vintage">Vintage</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <span className="text-[10px] text-white/40">Camera filters only</span>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="flex items-center justify-between gap-3">
+              <span>Brightness</span>
+              <input
+                type="range"
+                min="0.7"
+                max="1.3"
+                step="0.01"
+                value={filters.brightness}
+                onChange={(e) => updateFilter("brightness", Number(e.target.value))}
+                disabled={!filtersEnabled}
+                className="flex-1"
+              />
+              <span className="w-10 text-right">{filters.brightness.toFixed(2)}</span>
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Contrast</span>
+              <input
+                type="range"
+                min="0.7"
+                max="1.3"
+                step="0.01"
+                value={filters.contrast}
+                onChange={(e) => updateFilter("contrast", Number(e.target.value))}
+                disabled={!filtersEnabled}
+                className="flex-1"
+              />
+              <span className="w-10 text-right">{filters.contrast.toFixed(2)}</span>
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Saturation</span>
+              <input
+                type="range"
+                min="0.6"
+                max="1.6"
+                step="0.01"
+                value={filters.saturation}
+                onChange={(e) => updateFilter("saturation", Number(e.target.value))}
+                disabled={!filtersEnabled}
+                className="flex-1"
+              />
+              <span className="w-10 text-right">{filters.saturation.toFixed(2)}</span>
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Sharpness</span>
+              <input
+                type="range"
+                min="0"
+                max="0.5"
+                step="0.01"
+                value={filters.sharpness}
+                onChange={(e) => updateFilter("sharpness", Number(e.target.value))}
+                disabled={!filtersEnabled}
+                className="flex-1"
+              />
+              <span className="w-10 text-right">{filters.sharpness.toFixed(2)}</span>
+            </label>
+          </div>
+        </div>
+      ) : null}
+
       <div className="aspect-video bg-black">
         <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
       </div>
+
+      <video ref={filterVideoRef} className="hidden" muted playsInline />
+      <canvas ref={filterCanvasRef} className="hidden" />
 
       {error ? (
         <div className="px-4 py-3 text-xs text-amber-200/80 border-t border-white/10">
