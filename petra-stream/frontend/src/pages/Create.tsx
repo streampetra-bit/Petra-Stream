@@ -131,8 +131,7 @@ export default function CreatePage(): JSX.Element {
   useEffect(() => {
     if (!autoPlayback) return;
     if (streamKey && hlsBaseUrl) {
-      const base = hlsBaseUrl.endsWith("/") ? hlsBaseUrl.slice(0, -1) : hlsBaseUrl;
-      setPlaybackUrl(`${base}/${streamKey}/index.m3u8`);
+      setPlaybackUrl(resolvePlaybackUrl(hlsBaseUrl, streamKey));
     }
   }, [streamKey, hlsBaseUrl, autoPlayback]);
 
@@ -387,6 +386,15 @@ export default function CreatePage(): JSX.Element {
     return `https://${trimmed.replace(/^\/+/, "")}`;
   }
 
+  function resolvePlaybackUrl(baseUrl: string, key?: string | null) {
+    const base = normalizeBaseUrl(baseUrl);
+    if (!base) return "";
+    const hasManifest = base.includes("/manifest/") || base.toLowerCase().includes(".m3u8");
+    if (hasManifest) return base;
+    if (!key) return base;
+    return `${base.replace(/\/+$/, "")}/${key}/index.m3u8`;
+  }
+
   function buildWebrtcPublishUrl(key: string | null) {
     if (!key) return "";
     const base = normalizeBaseUrl(webrtcBaseUrl);
@@ -430,8 +438,8 @@ export default function CreatePage(): JSX.Element {
       if (!key) return false;
       const finalTitle = title.trim() || "Live Stream";
       if (!title.trim()) setTitle(finalTitle);
-      const base = hlsBaseUrl.endsWith("/") ? hlsBaseUrl.slice(0, -1) : hlsBaseUrl;
-      const derivedPlaybackUrl = autoPlayback && base && key ? `${base}/${key}/index.m3u8` : playbackUrl.trim();
+      const derivedPlaybackUrl =
+        autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim();
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       const payload = { title: finalTitle, description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
       const res = await api.post("/api/streams/start", payload);
