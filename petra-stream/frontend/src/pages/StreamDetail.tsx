@@ -88,6 +88,7 @@ export default function StreamDetail(): JSX.Element {
   const [followLoading, setFollowLoading] = useState(false);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"stream" | "chat" | "activity" | "support">("stream");
   const [authUser, setAuthUser] = useState(readAuthUser());
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
@@ -376,6 +377,14 @@ export default function StreamDetail(): JSX.Element {
   }
 
   const focusChat = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setMobileTab("chat");
+      setTimeout(() => {
+        const el = document.getElementById(chatInputId) as HTMLInputElement | null;
+        el?.focus();
+      }, 60);
+      return;
+    }
     const el = document.getElementById(chatInputId) as HTMLInputElement | null;
     el?.focus();
   };
@@ -472,7 +481,7 @@ export default function StreamDetail(): JSX.Element {
 
   return (
     <>
-      <div className="watch-page relative">
+      <div className="watch-page relative pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">
         <div className="pointer-events-none absolute -top-32 -left-32 h-72 w-72 rounded-full bg-primary/15 blur-[140px]" />
         <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-accent/15 blur-[160px]" />
 
@@ -604,7 +613,7 @@ export default function StreamDetail(): JSX.Element {
               </div>
             </div>
 
-            <div className="glass-card space-y-4">
+            <div className="glass-card space-y-4 hidden lg:block">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-subtle">Stream brief</p>
@@ -691,7 +700,7 @@ export default function StreamDetail(): JSX.Element {
               </div>
             </div>
 
-            <section>
+            <section className="hidden lg:block">
               <h3 className="font-semibold mb-2 text-text">Related Streams</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {related.length ? (
@@ -700,6 +709,157 @@ export default function StreamDetail(): JSX.Element {
                   <div className="muted">No related streams found.</div>
                 )}
               </div>
+            </section>
+
+            <section className="lg:hidden space-y-4">
+              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-5 shadow-[0_20px_40px_rgba(2,6,23,0.5)]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-subtle">Stream brief</p>
+                    <h2 className="mt-2 text-2xl font-semibold text-text">{stream.title ?? "Live stream"}</h2>
+                    <p className="mt-2 text-sm text-subtle">
+                      {stream.description ?? "Live on Petra Stream. Join the chat and support the creator."}
+                    </p>
+                  </div>
+                  {isLive && (
+                    <span className="rounded-full bg-rose-500/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-200">
+                      Live now
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {tags.length ? (
+                    tags.slice(0, 6).map((t) => (
+                      <span key={t} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-subtle">
+                        #{t}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-subtle">No tags yet</span>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-subtle">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    {viewerCount} viewers
+                  </span>
+                  <span className="font-mono">Streamer: {streamerLabel}</span>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {!isOwner && (
+                    <button
+                      onClick={toggleFollow}
+                      className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                      disabled={followLoading}
+                    >
+                      {followLoading ? "Loading..." : following ? "Following" : "Follow"}
+                    </button>
+                  )}
+                  <button
+                    onClick={focusChat}
+                    className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+                  >
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => setOpenTip(true)}
+                    className="rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-bg shadow-lg shadow-primary/30 hover:brightness-110 transition"
+                  >
+                    Tip Streamer
+                  </button>
+                  <button
+                    onClick={mintClip}
+                    className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                  >
+                    Mint Clip
+                  </button>
+                </div>
+              </div>
+
+              {mobileTab === "chat" && (
+                <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[60vh]">
+                  <div className="flex-1 min-h-[55vh]">
+                    <ChatPanel
+                      streamId={String(streamId)}
+                      inputId={chatInputId}
+                      currentUser={currentUser}
+                      variant="viewer"
+                      pinnedNotice="Be kind. Respect the community and support the creator."
+                      emotes={defaultEmotes}
+                      slowModeMs={1500}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {mobileTab === "activity" && (
+                <div className="rounded-[28px] border border-white/10 bg-surface/70 p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-text">Live Activity</h3>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">On-chain indexer</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {activityLoading ? (
+                      <div className="rounded-2xl border border-white/10 bg-bg/70 p-4 text-xs text-subtle">
+                        Loading activity...
+                      </div>
+                    ) : activity.length ? (
+                      activity.map((item) => {
+                        const meta = activityMeta(item.kind);
+                        return (
+                          <div key={item.id} className={`rounded-2xl border p-4 ${meta.card}`}>
+                            <div className="flex items-center justify-between text-xs text-subtle">
+                              <span className="font-semibold text-text">{item.title}</span>
+                              <span>{formatTime(item.ts)}</span>
+                            </div>
+                            {item.description && (
+                              <p className="mt-2 text-sm text-subtle">{item.description}</p>
+                            )}
+                            <span
+                              className={`mt-3 inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${meta.badge}`}
+                            >
+                              {meta.label}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-2xl border border-white/10 bg-bg/70 p-4 text-xs text-subtle">
+                        No activity yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {mobileTab === "support" && (
+                <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-text">Supporters</h4>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle">On-chain</span>
+                  </div>
+                  <ViewerList streamId={String(streamId)} />
+                </div>
+              )}
+
+              {mobileTab === "stream" && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-text">Related Streams</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {related.length ? (
+                      related.map((r) => <StreamCard key={r.streamer || r.id} stream={r as any} />)
+                    ) : (
+                      <div className="muted">No related streams found.</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </section>
           </section>
 
@@ -774,6 +934,39 @@ export default function StreamDetail(): JSX.Element {
               </div>
             </aside>
           )}
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
+        <div className="mx-auto max-w-md px-4 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+          <div className="rounded-2xl border border-white/10 bg-bg/90 backdrop-blur-xl shadow-[0_16px_40px_rgba(2,6,23,0.55)]">
+            <div className="grid grid-cols-4">
+              {[
+                { key: "stream", label: "Home" },
+                { key: "chat", label: "Chat" },
+                { key: "activity", label: "Activity" },
+                { key: "support", label: "Support" },
+              ].map((tab) => {
+                const active = mobileTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setMobileTab(tab.key as typeof mobileTab)}
+                    className={`flex flex-col items-center justify-center gap-1 px-2 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] transition ${
+                      active ? "text-primary" : "text-subtle"
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        active ? "bg-primary shadow-[0_0_12px_rgba(124,255,109,0.7)]" : "bg-white/10"
+                      }`}
+                    />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 

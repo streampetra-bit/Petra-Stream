@@ -89,6 +89,7 @@ export default function ChatUI({
     getScrollElement: () => listRef.current,
     estimateSize: () => ESTIMATED_ROW,
     overscan: 8,
+    getItemKey: (index) => messages[index]?.id ?? index,
   });
 
   const totalSize = rowVirtualizer.getTotalSize();
@@ -122,7 +123,7 @@ export default function ChatUI({
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
     if (!el) return;
-    const top = rowVirtualizer.getTotalSize();
+    const top = el.scrollHeight || rowVirtualizer.getTotalSize();
     window.requestAnimationFrame(() => {
       el.scrollTo({ top, behavior });
     });
@@ -132,7 +133,8 @@ export default function ChatUI({
     const el = listRef.current;
     if (!el) return;
     const handleScroll = () => {
-      const atBottom = el.scrollTop + el.clientHeight >= totalSize - SCROLL_BOTTOM_THRESHOLD;
+      const scrollHeight = el.scrollHeight || totalSize;
+      const atBottom = el.scrollTop + el.clientHeight >= scrollHeight - SCROLL_BOTTOM_THRESHOLD;
       setIsAtBottom(atBottom);
       if (atBottom) setHasUnread(false);
     };
@@ -143,6 +145,7 @@ export default function ChatUI({
 
   useEffect(() => {
     if (!messages.length) return;
+    rowVirtualizer.measure();
     if (!initialScrollRef.current) {
       scrollToBottom("auto");
       initialScrollRef.current = true;
