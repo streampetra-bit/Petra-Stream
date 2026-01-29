@@ -314,10 +314,10 @@ export default function ChatUI({
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className={clsx("relative flex-1 overflow-hidden", open ? "block" : "hidden sm:block")}>
+          <div className={clsx("relative flex flex-col flex-1 min-h-0 overflow-hidden", open ? "block" : "hidden sm:block")}>
             <div
               ref={listRef}
-              className="h-full min-h-0 overflow-y-auto overscroll-contain px-4 py-4 touch-pan-y"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 touch-pan-y"
               data-stream={streamId}
             >
               {messages.length === 0 ? (
