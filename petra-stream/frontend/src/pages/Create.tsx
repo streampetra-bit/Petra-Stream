@@ -1078,7 +1078,7 @@ export default function CreatePage(): JSX.Element {
             </section>
           </div>
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-28 lg:max-h-[calc(100vh-180px)] flex flex-col gap-6 h-full">
+            <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-180px)] min-h-0 flex flex-col gap-6 h-full">
               <div className="glass-card rounded-3xl p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1119,7 +1119,7 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-[420px]">
+              <div className="flex-1 min-h-[420px] min-h-0">
                 <ChatPanel
                   streamId={String(streamRoomId)}
                   currentUser={chatUser}
