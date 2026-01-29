@@ -312,10 +312,14 @@ export default function ChatUI({
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className={clsx("relative flex-1 overflow-hidden", open ? "block" : "hidden sm:block")}>
-            <div ref={listRef} className="h-full overflow-y-auto px-4 py-4" data-stream={streamId}>
+            <div
+              ref={listRef}
+              className="h-full min-h-0 overflow-y-auto overscroll-contain px-4 py-4 touch-pan-y"
+              data-stream={streamId}
+            >
               {messages.length === 0 ? (
                 <div className="text-center text-sm text-white/40 py-12">
                   No messages yet. Start the conversation.
