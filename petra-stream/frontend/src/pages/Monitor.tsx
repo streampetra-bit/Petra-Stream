@@ -127,7 +127,7 @@ export default function Monitor(): JSX.Element {
             </div>
           </div>
 
-          <div className="glass-card p-4 flex flex-col min-h-0 h-[clamp(360px,70vh,720px)]">
+          <div className="glass-card p-4 flex flex-col min-h-0">
             <div className="flex-1 min-h-0">
               <ChatPanel
                 streamId={String(streamId)}

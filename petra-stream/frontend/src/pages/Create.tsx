@@ -1119,7 +1119,7 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 h-[clamp(360px,70vh,720px)]">
+              <div className="flex-1 min-h-0">
                 <ChatPanel
                   streamId={String(streamRoomId)}
                   currentUser={chatUser}

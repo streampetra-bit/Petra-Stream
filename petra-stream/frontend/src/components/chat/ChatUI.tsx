@@ -93,7 +93,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "Moderation chat"
         : "Live chat");
-  const openHeightClass = heightClass ?? "h-full";
+  const openHeightClass = heightClass ?? "min-h-[320px] h-[520px] max-h-[70vh]";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
@@ -205,7 +205,7 @@ export default function ChatUI({
   return (
     <section
       className={clsx(
-        "relative flex flex-col min-h-0 rounded-3xl border border-white/10 bg-surface/80",
+        "relative z-10 flex flex-col min-h-0 rounded-3xl border border-white/10 bg-surface/80",
         openHeightClass
       )}
       aria-label="Chat panel"
@@ -257,7 +257,7 @@ export default function ChatUI({
         <div className="relative flex-1 min-h-0">
           <div
             ref={listRef}
-            className="h-full overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3"
+            className="h-full overflow-y-auto overflow-x-hidden scroll-smooth overscroll-contain px-4 py-4 space-y-3"
             data-stream={streamId}
           >
             {messages.length === 0 ? (
@@ -358,7 +358,7 @@ export default function ChatUI({
           </div>
 
           {showEmoji && (
-            <div className="mt-2 z-50">
+            <div className="relative z-30 mt-2">
               <EmojiPicker
                 onPick={(emoji) => {
                   setValue((v) => v + emoji);
