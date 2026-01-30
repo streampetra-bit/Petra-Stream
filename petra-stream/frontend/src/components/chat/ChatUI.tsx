@@ -205,7 +205,7 @@ export default function ChatUI({
   return (
     <section
       className={clsx(
-        "relative flex flex-col min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-surface/80",
+        "relative flex flex-col min-h-0 rounded-3xl border border-white/10 bg-surface/80",
         openHeightClass
       )}
       aria-label="Chat panel"
@@ -257,7 +257,7 @@ export default function ChatUI({
         <div className="relative flex-1 min-h-0">
           <div
             ref={listRef}
-            className="h-full overflow-y-auto px-4 py-4 space-y-3"
+            className="h-full overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3"
             data-stream={streamId}
           >
             {messages.length === 0 ? (
@@ -302,7 +302,7 @@ export default function ChatUI({
           )}
         </div>
 
-        <div className="border-t border-white/10 bg-black/40 backdrop-blur px-4 py-3">
+        <div className="flex-shrink-0 border-t border-white/10 bg-black/40 backdrop-blur px-4 py-3">
           {replyTo ? (
             <div className="mb-2 flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs">
               <div className="text-text">
