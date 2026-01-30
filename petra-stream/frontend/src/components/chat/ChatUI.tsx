@@ -93,7 +93,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "Moderation chat"
         : "Live chat");
-  const openHeightClass = heightClass ?? "min-h-[320px] h-[520px] max-h-[70vh]";
+  const openHeightClass = heightClass ?? "min-h-[300px] h-[420px] max-h-[60vh]";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
