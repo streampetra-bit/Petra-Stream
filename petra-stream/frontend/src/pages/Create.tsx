@@ -904,7 +904,7 @@ export default function CreatePage(): JSX.Element {
   }, [isPrepared, playbackUrl, isLive]);
 
   return (
-    <div className="relative overflow-hidden create-page">
+    <div className="relative overflow-x-hidden create-page">
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div
           className="absolute inset-0"
@@ -1119,7 +1119,7 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-[420px] overflow-hidden">
+              <div className="flex-1 min-h-0 h-[clamp(360px,70vh,720px)]">
                 <ChatPanel
                   streamId={String(streamRoomId)}
                   currentUser={chatUser}
