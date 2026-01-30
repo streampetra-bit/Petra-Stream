@@ -270,7 +270,7 @@ export default function ChatUI({
         </div>
       )}
 
-      <div className={clsx("flex flex-1 min-h-0 flex-col", open ? "block" : "hidden sm:block")}>
+      <div className={clsx("flex flex-1 min-h-0 flex-col", open ? "" : "hidden sm:flex")}>
         <div className="relative flex-1 min-h-0">
           <div
             ref={listRef}
