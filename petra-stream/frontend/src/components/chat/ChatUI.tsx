@@ -65,7 +65,6 @@ export default function ChatUI({
   onTyping,
 }: ChatUIProps) {
   const [value, setValue] = useState("");
-  const [open, setOpen] = useState(!collapsedOnDesktop);
   const [showEmoji, setShowEmoji] = useState(false);
   const [replyTo, setReplyTo] = useState<{ user: string; text?: string; id?: string } | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
@@ -94,7 +93,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "Moderation chat"
         : "Live chat");
-  const openHeightClass = heightClass ?? "h-full";
+  const openHeightClass = heightClass ?? "min-h-[360px] max-h-[70vh] h-full";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
@@ -135,14 +134,6 @@ export default function ChatUI({
       return;
     }
 
-    if (!open) {
-      if (added > 0) {
-        setHasUnread(true);
-        setUnreadCount((count) => count + added);
-      }
-      return;
-    }
-
     if (isAtBottom) {
       scrollToBottom("smooth");
       setHasUnread(false);
@@ -151,7 +142,7 @@ export default function ChatUI({
       setHasUnread(true);
       setUnreadCount((count) => count + added);
     }
-  }, [messages.length, open, isAtBottom]);
+  }, [messages.length, isAtBottom]);
 
   useEffect(() => {
     if (!cooldownUntil) return;
@@ -215,7 +206,7 @@ export default function ChatUI({
     <section
       className={clsx(
         "relative flex flex-col min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-surface/80",
-        open ? openHeightClass : "h-14"
+        openHeightClass
       )}
       aria-label="Chat panel"
     >
@@ -237,14 +228,6 @@ export default function ChatUI({
               Mod
             </button>
           ) : null}
-          <button
-            onClick={() => setOpen((s) => !s)}
-            aria-expanded={open}
-            className="rounded-full border border-white/10 px-2 py-1 text-[10px]"
-            title={open ? "Collapse chat" : "Open chat"}
-          >
-            {open ? "Hide" : "Show"}
-          </button>
         </div>
       </header>
 
@@ -270,7 +253,7 @@ export default function ChatUI({
         </div>
       )}
 
-      <div className={clsx("flex flex-1 min-h-0 flex-col", open ? "" : "hidden sm:flex")}>
+      <div className="flex flex-1 min-h-0 flex-col">
         <div className="relative flex-1 min-h-0">
           <div
             ref={listRef}
@@ -284,7 +267,8 @@ export default function ChatUI({
             ) : (
               messages.map((msg) => {
                 if (!msg) return null;
-                const isMention = currentUser && msg.text?.toLowerCase().includes(`@${currentUser}`.toLowerCase());
+                const messageText = msg.text ?? "";
+                const isMention = currentUser && messageText.toLowerCase().includes(`@${currentUser}`.toLowerCase());
                 const isReplyToMe = msg.replyToUser && msg.replyToUser === currentUser;
                 return (
                   <MessageBubble
