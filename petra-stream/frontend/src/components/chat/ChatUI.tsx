@@ -94,14 +94,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "Moderation chat"
         : "Live chat");
-  const subtitle = headerSubtitle
-    || (variant === "creator"
-      ? "Studio room"
-      : variant === "monitor"
-        ? "Moderation feed"
-        : "Be kind. Keep it fun.");
-  const variantTag = variant === "creator" ? "Studio" : variant === "monitor" ? "Monitor" : "Viewer";
-  const openHeightClass = heightClass ?? "h-[clamp(420px,60vh,760px)]";
+  const openHeightClass = heightClass ?? "h-[clamp(520px,70vh,860px)]";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
@@ -226,46 +219,31 @@ export default function ChatUI({
       )}
       aria-label="Chat panel"
     >
-      <header className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.5)]" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-text">{header}</div>
-            <div className="text-[11px] text-white/40">{subtitle}</div>
-          </div>
-          <span className="hidden sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-            {variantTag}
-          </span>
+      <header className="flex items-center justify-between border-b border-white/10 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+          <span className="text-sm font-semibold text-text">{header}</span>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
-          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em]">
-            {participants.length} here
-          </span>
-          <span className={clsx(
-            "rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.2em]",
-            isConnected ? "border-emerald-400/40 text-emerald-200" : "border-amber-400/40 text-amber-200"
-          )}>
-            {statusLabel}
+        <div className="flex items-center gap-2 text-xs text-white/60">
+          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
+            {participants.length}
           </span>
           {showModerationPanel ? (
             <button
               type="button"
-              className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em]"
               onClick={() => setShowModeration(true)}
+              className="rounded-full border border-white/10 px-2 py-1 text-[10px]"
             >
-              Moderation
+              Mod
             </button>
           ) : null}
           <button
             onClick={() => setOpen((s) => !s)}
             aria-expanded={open}
-            className="rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em]"
+            className="rounded-full border border-white/10 px-2 py-1 text-[10px]"
             title={open ? "Collapse chat" : "Open chat"}
           >
-            {open ? "Collapse" : "Open"}
+            {open ? "Hide" : "Show"}
           </button>
         </div>
       </header>
