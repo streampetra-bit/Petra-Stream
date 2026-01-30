@@ -30,6 +30,7 @@ export interface ChatPanelProps {
   headerTitle?: string;
   headerSubtitle?: string;
   variant?: ChatVariant;
+  heightClass?: string;
   canChat?: boolean;
   isConnected?: boolean;
   isModerator?: boolean;
@@ -54,6 +55,7 @@ export default function ChatPanel({
   headerTitle,
   headerSubtitle,
   variant = "viewer",
+  heightClass,
   canChat = true,
   isConnected,
   isModerator = false,
@@ -344,6 +346,7 @@ export default function ChatPanel({
       headerTitle={headerTitle}
       headerSubtitle={headerSubtitle}
       variant={variant}
+      heightClass={heightClass}
       isConnected={resolvedConnected}
       canChat={canChat}
       isModerator={isModerator}

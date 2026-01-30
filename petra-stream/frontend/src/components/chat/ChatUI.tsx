@@ -26,6 +26,7 @@ export interface ChatUIProps {
   headerTitle?: string;
   headerSubtitle?: string;
   variant?: ChatVariant;
+  heightClass?: string;
   isConnected?: boolean;
   canChat?: boolean;
   isModerator?: boolean;
@@ -54,6 +55,7 @@ export default function ChatUI({
   headerTitle,
   headerSubtitle,
   variant = "viewer",
+  heightClass,
   isConnected = true,
   canChat = true,
   isModerator = false,
@@ -121,6 +123,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "from-amber-400/15 via-transparent to-rose-400/10"
         : "from-white/5 via-transparent to-white/5";
+  const openHeightClass = heightClass ?? "h-[clamp(360px,60vh,720px)]";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
@@ -312,8 +315,8 @@ export default function ChatUI({
   return (
     <div
       className={clsx(
-        `relative flex flex-col min-h-0 rounded-3xl border border-white/10 bg-gradient-to-br ${shellTone}`,
-        open ? "h-full" : "h-14"
+        `relative flex flex-col min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${shellTone}`,
+        open ? openHeightClass : "h-14"
       )}
       aria-label="Chat panel"
     >
