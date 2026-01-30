@@ -67,17 +67,12 @@ export default function ChatUI({
   const [value, setValue] = useState("");
   const [open, setOpen] = useState(!collapsedOnDesktop);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [suggestionMode, setSuggestionMode] = useState<"mention" | "emote" | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [replyTo, setReplyTo] = useState<{ user: string; text?: string; id?: string } | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showModeration, setShowModeration] = useState(false);
-  const [pauseOnHover, setPauseOnHover] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
-  const [chatMode, setChatMode] = useState<"live" | "top">("live");
   const initialScrollRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -101,21 +96,12 @@ export default function ChatUI({
         : "Live chat");
   const subtitle = headerSubtitle
     || (variant === "creator"
-      ? "Broadcast lounge"
+      ? "Studio room"
       : variant === "monitor"
-        ? "Community pulse"
-        : "Join the conversation");
+        ? "Moderation feed"
+        : "Be kind. Keep it fun.");
   const variantTag = variant === "creator" ? "Studio" : variant === "monitor" ? "Monitor" : "Viewer";
-  const shellTone =
-    variant === "creator"
-      ? "from-primary/20 via-transparent to-emerald-400/10"
-      : variant === "monitor"
-        ? "from-amber-400/15 via-transparent to-rose-400/10"
-        : "from-white/5 via-transparent to-white/5";
   const openHeightClass = heightClass ?? "h-[clamp(420px,60vh,760px)]";
-
-  const isPaused = !isAtBottom || (pauseOnHover && isHovering);
-  const pausedLabel = !isAtBottom ? "Paused (scrolled up)" : pauseOnHover && isHovering ? "Paused (hover)" : "";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
@@ -164,7 +150,7 @@ export default function ChatUI({
       return;
     }
 
-    if (!isPaused) {
+    if (isAtBottom) {
       scrollToBottom("smooth");
       setHasUnread(false);
       setUnreadCount(0);
@@ -172,7 +158,7 @@ export default function ChatUI({
       setHasUnread(true);
       setUnreadCount((count) => count + added);
     }
-  }, [messages.length, open, isPaused]);
+  }, [messages.length, open, isAtBottom]);
 
   useEffect(() => {
     if (!cooldownUntil) return;
@@ -189,51 +175,12 @@ export default function ChatUI({
   }, [value, onTyping]);
 
   useEffect(() => {
-    const match = value.match(/(^|\s)([@:])([^\s]*)$/);
-    if (!match) {
-      setSuggestions([]);
-      setSuggestionMode(null);
-      return;
-    }
-    const symbol = match[2];
-    const query = match[3] || "";
-    if (symbol === "@") {
-      const list = participants.filter((p) => p.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
-      setSuggestions(list);
-      setSuggestionMode(list.length ? "mention" : null);
-      return;
-    }
-    if (symbol === ":" && emotes) {
-      const emoteKeys = Object.keys(emotes);
-      const list = emoteKeys.filter((e) => e.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
-      setSuggestions(list);
-      setSuggestionMode(list.length ? "emote" : null);
-      return;
-    }
-    setSuggestions([]);
-    setSuggestionMode(null);
-  }, [value, participants, emotes]);
-
-  const insertSuggestion = (name: string) => {
-    const match = value.match(/(^|\s)([@:])([^\s]*)$/);
-    if (!match || match.index === undefined) {
-      setValue((prev) => `${prev}${name} `);
-      setSuggestions([]);
-      setSuggestionMode(null);
-      return;
-    }
-    const symbol = match[2];
-    const prefix = match[1] || "";
-    const start = match.index + prefix.length;
-    const before = value.slice(0, start);
-    const after = value.slice(start + 1 + match[3].length);
-    const token = symbol === "@" ? `@${name}` : `:${name}:`;
-    const next = `${before}${token} ${after}`.replace(/\s{2,}/g, " ");
-    setValue(next);
-    setSuggestions([]);
-    setSuggestionMode(null);
-    inputRef.current?.focus();
-  };
+    initialScrollRef.current = false;
+    prevCountRef.current = 0;
+    setHasUnread(false);
+    setUnreadCount(0);
+    setIsAtBottom(true);
+  }, [streamId]);
 
   const handleSend = async () => {
     const text = value.trim();
@@ -271,36 +218,24 @@ export default function ChatUI({
     setUnreadCount(0);
   };
 
-  useEffect(() => {
-    initialScrollRef.current = false;
-    prevCountRef.current = 0;
-    setHasUnread(false);
-    setUnreadCount(0);
-    setIsAtBottom(true);
-  }, [streamId]);
-
-  const mentionToken = currentUser ? `@${currentUser}` : "";
-
   return (
     <section
       className={clsx(
-        `relative flex flex-col min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${shellTone}`,
+        "relative flex flex-col min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-surface/80",
         open ? openHeightClass : "h-14"
       )}
       aria-label="Chat panel"
     >
       <header className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-            <svg className="h-5 w-5 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 3v-3H6a2 2 0 0 1-2-2z" />
-            </svg>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.5)]" />
           </div>
           <div>
             <div className="text-sm font-semibold text-text">{header}</div>
             <div className="text-[11px] text-white/40">{subtitle}</div>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
+          <span className="hidden sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
             {variantTag}
           </span>
         </div>
@@ -315,32 +250,6 @@ export default function ChatUI({
           )}>
             {statusLabel}
           </span>
-          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-[10px] uppercase tracking-[0.2em]">
-            <button
-              type="button"
-              onClick={() => setChatMode("live")}
-              className={clsx("rounded-full px-3 py-1", chatMode === "live" ? "bg-primary/20 text-primary" : "text-white/60")}
-            >
-              Live
-            </button>
-            <button
-              type="button"
-              onClick={() => setChatMode("top")}
-              className={clsx("rounded-full px-3 py-1", chatMode === "top" ? "bg-primary/20 text-primary" : "text-white/60")}
-            >
-              Top
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => setPauseOnHover((s) => !s)}
-            className={clsx(
-              "rounded-full border border-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em]",
-              pauseOnHover ? "bg-white/10 text-text" : "text-white/50"
-            )}
-          >
-            Pause on hover
-          </button>
           {showModerationPanel ? (
             <button
               type="button"
@@ -362,13 +271,10 @@ export default function ChatUI({
       </header>
 
       {(pinnedNotice || slowModeMs > 0 || (!isAtBottom && hasUnread)) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[11px] text-white/60">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-4 py-2 text-[11px] text-white/60">
           <div className="flex flex-wrap items-center gap-3">
             {pinnedNotice ? (
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70">
-                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 3h6l-1 6 4 4-2 2-4-4-6 1V3z" />
-                </svg>
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70">
                 {pinnedNotice}
               </span>
             ) : null}
@@ -392,8 +298,6 @@ export default function ChatUI({
             ref={listRef}
             className="h-full overflow-y-auto px-4 py-4 space-y-3"
             data-stream={streamId}
-            onMouseEnter={() => setIsHovering(true)}
-            onMouseLeave={() => setIsHovering(false)}
           >
             {messages.length === 0 ? (
               <div className="text-center text-sm text-white/40 py-12">
@@ -402,7 +306,7 @@ export default function ChatUI({
             ) : (
               messages.map((msg) => {
                 if (!msg) return null;
-                const isMention = mentionToken && msg.text?.toLowerCase().includes(mentionToken.toLowerCase());
+                const isMention = currentUser && msg.text?.toLowerCase().includes(`@${currentUser}`.toLowerCase());
                 const isReplyToMe = msg.replyToUser && msg.replyToUser === currentUser;
                 return (
                   <MessageBubble
@@ -426,16 +330,10 @@ export default function ChatUI({
             )}
           </div>
 
-          {isPaused ? (
-            <div className="absolute right-4 top-4 rounded-full border border-white/10 bg-black/50 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 backdrop-blur">
-              {pausedLabel}
-            </div>
-          ) : null}
-
           {hasUnread && (
             <button
               onClick={jumpToLatest}
-              className="absolute right-4 bottom-4 px-3 py-2 rounded-full text-xs border border-white/10 bg-black/40 backdrop-blur"
+              className="absolute right-4 bottom-4 px-3 py-2 rounded-full text-xs border border-white/10 bg-black/60 backdrop-blur"
             >
               {unreadCount > 0 ? `New messages (${unreadCount})` : "Jump to latest"}
             </button>
@@ -480,23 +378,6 @@ export default function ChatUI({
                 className="w-full rounded-lg p-2 bg-bg/10 text-text outline-none border border-white/6"
                 disabled={!inputEnabled}
               />
-
-              {suggestionMode && suggestions.length > 0 && (
-                <div className="absolute left-0 bottom-[calc(100%+8px)] w-full bg-surface rounded-lg shadow-md z-40 border border-white/6 overflow-hidden">
-                  {suggestions.map((sug) => (
-                    <button
-                      key={`${suggestionMode}-${sug}`}
-                      onClick={() => insertSuggestion(sug)}
-                      className="w-full text-left px-3 py-2 hover:bg-white/5 text-text text-sm flex items-center gap-2"
-                    >
-                      {suggestionMode === "emote" && emotes?.[sug] ? (
-                        <img src={emotes[sug]} alt={sug} className="h-5 w-5" />
-                      ) : null}
-                      <span>{suggestionMode === "mention" ? `@${sug}` : `:${sug}:`}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <button
