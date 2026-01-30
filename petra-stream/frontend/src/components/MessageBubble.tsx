@@ -50,7 +50,7 @@ export default function MessageBubble({
   onReply,
   showTimestamp = false,
   emotes,
-  shade = false,
+  highlight = false,
 }: {
   msg: ChatMessage;
   mine?: boolean;
@@ -60,7 +60,7 @@ export default function MessageBubble({
   onReply?: () => void;
   showTimestamp?: boolean;
   emotes?: ChatEmoteMap;
-  shade?: boolean;
+  highlight?: boolean;
 }) {
   const time = new Date(msg.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const nameColor = msg.color || hashColor(msg.user || "user");
@@ -69,7 +69,7 @@ export default function MessageBubble({
 
   if (msg.system) {
     return (
-      <div className="text-xs text-amber-200/80 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+      <div className="rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-center text-[11px] text-amber-200/80">
         {msg.text}
       </div>
     );
@@ -78,12 +78,13 @@ export default function MessageBubble({
   return (
     <div
       className={clsx(
-        "group flex items-start gap-3 rounded-xl px-3 py-2 transition-colors",
-        shade ? "bg-white/5" : "bg-transparent"
+        "group flex items-start gap-3 rounded-2xl border px-3 py-2 transition",
+        highlight ? "border-primary/30 bg-primary/10" : "border-transparent hover:border-white/10",
+        mine ? "bg-white/5" : "bg-black/20"
       )}
     >
       <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold uppercase border border-white/10"
+        className="h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold uppercase border border-white/10"
         style={{ background: "rgba(255,255,255,0.06)", color: nameColor }}
       >
         {initials}
@@ -124,7 +125,7 @@ export default function MessageBubble({
         </div>
 
         {(isModerator || onReply) && !msg.deleted ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/40">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/40 opacity-0 transition group-hover:opacity-100">
             {onReply ? (
               <button className="px-2 py-1 rounded-md border border-white/10 hover:text-text" onClick={onReply}>
                 Reply
