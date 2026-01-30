@@ -72,12 +72,14 @@ export default function ChatUI({
   const [replyTo, setReplyTo] = useState<{ user: string; text?: string; id?: string } | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showModeration, setShowModeration] = useState(false);
   const initialScrollRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const prevCountRef = useRef(0);
 
   const typingList = useMemo(
     () => typingUsers.filter((u) => u && u !== currentUser),
@@ -123,9 +125,17 @@ export default function ChatUI({
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
     const el = listRef.current;
     if (!el) return;
-    const top = el.scrollHeight || rowVirtualizer.getTotalSize();
+    if (!messages.length) {
+      el.scrollTo({ top: 0, behavior });
+      return;
+    }
     window.requestAnimationFrame(() => {
-      el.scrollTo({ top, behavior });
+      try {
+        rowVirtualizer.scrollToIndex(messages.length - 1, { align: "end", behavior });
+      } catch {
+        const top = el.scrollHeight || rowVirtualizer.getTotalSize();
+        el.scrollTo({ top, behavior });
+      }
     });
   };
 
@@ -136,7 +146,10 @@ export default function ChatUI({
       const scrollHeight = el.scrollHeight || totalSize;
       const atBottom = el.scrollTop + el.clientHeight >= scrollHeight - SCROLL_BOTTOM_THRESHOLD;
       setIsAtBottom(atBottom);
-      if (atBottom) setHasUnread(false);
+      if (atBottom) {
+        setHasUnread(false);
+        setUnreadCount(0);
+      }
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
@@ -146,17 +159,58 @@ export default function ChatUI({
   useEffect(() => {
     if (!messages.length) return;
     rowVirtualizer.measure();
+    const previousCount = prevCountRef.current;
+    const added = Math.max(0, messages.length - previousCount);
+    prevCountRef.current = messages.length;
+
     if (!initialScrollRef.current) {
       scrollToBottom("auto");
       initialScrollRef.current = true;
+      setHasUnread(false);
+      setUnreadCount(0);
       return;
     }
+
+    if (!open) {
+      if (added > 0) {
+        setHasUnread(true);
+        setUnreadCount((count) => count + added);
+      }
+      return;
+    }
+
     if (isAtBottom) {
       scrollToBottom("smooth");
-    } else {
-      setHasUnread(true);
+      setUnreadCount(0);
+      setHasUnread(false);
+      return;
     }
-  }, [messages.length, isAtBottom]);
+
+    if (added > 0) {
+      setHasUnread(true);
+      setUnreadCount((count) => count + added);
+    }
+  }, [messages.length, isAtBottom, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    rowVirtualizer.measure();
+    if (!messages.length) return;
+    if (!initialScrollRef.current || isAtBottom) {
+      scrollToBottom("auto");
+      setHasUnread(false);
+      setUnreadCount(0);
+    }
+  }, [open, isAtBottom, messages.length]);
+
+  useEffect(() => {
+    initialScrollRef.current = false;
+    prevCountRef.current = 0;
+    seenIdsRef.current = new Set();
+    setHasUnread(false);
+    setUnreadCount(0);
+    setIsAtBottom(true);
+  }, [streamId]);
 
   useEffect(() => {
     if (!cooldownUntil) return;
@@ -252,12 +306,13 @@ export default function ChatUI({
   const jumpToLatest = () => {
     scrollToBottom("smooth");
     setHasUnread(false);
+    setUnreadCount(0);
   };
 
   return (
     <div
       className={clsx(
-        `relative flex flex-col rounded-3xl border border-white/10 bg-gradient-to-br ${shellTone}`,
+        `relative flex flex-col min-h-0 rounded-3xl border border-white/10 bg-gradient-to-br ${shellTone}`,
         open ? "h-full" : "h-14"
       )}
       aria-label="Chat panel"
@@ -307,7 +362,11 @@ export default function ChatUI({
                 Slow mode: {(slowModeMs / 1000).toFixed(0)}s
               </span>
             ) : null}
-            {!isAtBottom && hasUnread ? <span>Chat paused - scroll down to resume.</span> : null}
+            {!isAtBottom && hasUnread ? (
+              <span>
+                Chat paused - {unreadCount > 0 ? `${unreadCount} new` : "scroll down"} to resume.
+              </span>
+            ) : null}
           </div>
         </div>
       )}
@@ -366,7 +425,7 @@ export default function ChatUI({
                 onClick={jumpToLatest}
                 className="absolute right-5 bottom-5 px-3 py-2 rounded-full text-xs border border-white/10 bg-black/40 backdrop-blur"
               >
-                Jump to latest
+                {unreadCount > 0 ? `New messages (${unreadCount})` : "Jump to latest"}
               </button>
             )}
           </div>

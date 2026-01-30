@@ -780,8 +780,8 @@ export default function StreamDetail(): JSX.Element {
               </div>
 
               {mobileTab === "chat" && (
-                <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[60vh]">
-                  <div className="flex-1 min-h-[55vh]">
+                <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[60vh] max-h-[70vh]">
+                  <div className="flex-1 min-h-0">
                     <ChatPanel
                       streamId={String(streamId)}
                       inputId={chatInputId}
@@ -911,8 +911,8 @@ export default function StreamDetail(): JSX.Element {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[360px]">
-                <div className="flex-1 min-h-[320px]">
+              <div className="rounded-[28px] border border-white/10 bg-surface/70 p-4 flex flex-col min-h-[360px] max-h-[70vh]">
+                <div className="flex-1 min-h-0">
                   <ChatPanel
                     streamId={String(streamId)}
                     inputId={chatInputId}

@@ -127,18 +127,20 @@ export default function Monitor(): JSX.Element {
             </div>
           </div>
 
-          <div className="glass-card p-4">
-            <ChatPanel
-              streamId={String(streamId)}
-              currentUser={currentUser}
-              variant="monitor"
-              showModerationPanel
-              isModerator
-              currentBadges={["moderator"]}
-              showTimestamps
-              pinnedNotice="Monitoring mode: keep chat healthy and responsive."
-              emotes={defaultEmotes}
-            />
+          <div className="glass-card p-4 flex flex-col min-h-[420px] max-h-[70vh]">
+            <div className="flex-1 min-h-0">
+              <ChatPanel
+                streamId={String(streamId)}
+                currentUser={currentUser}
+                variant="monitor"
+                showModerationPanel
+                isModerator
+                currentBadges={["moderator"]}
+                showTimestamps
+                pinnedNotice="Monitoring mode: keep chat healthy and responsive."
+                emotes={defaultEmotes}
+              />
+            </div>
           </div>
         </section>
 
