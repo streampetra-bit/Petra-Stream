@@ -19,8 +19,10 @@ export default function Settings(): JSX.Element {
     compactMode: false,
   });
 
+  const allowVpsFallback =
+    String(import.meta.env.VITE_ALLOW_VPS_FALLBACK || "false").toLowerCase() === "true";
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "rtmp://165.227.224.72/live";
-  const hlsBase = import.meta.env.VITE_HLS_BASE_URL || "http://165.227.224.72:8888/live";
+  const hlsBase = allowVpsFallback ? import.meta.env.VITE_HLS_BASE_URL || "" : "";
 
   useEffect(() => {
     try {
@@ -96,7 +98,7 @@ export default function Settings(): JSX.Element {
         <div className="text-sm muted">Ingest URL</div>
         <div className="font-mono text-sm">{ingestUrl}</div>
         <div className="text-sm muted mt-2">HLS base URL</div>
-        <div className="font-mono text-sm">{hlsBase}</div>
+        <div className="font-mono text-sm">{hlsBase || "disabled"}</div>
         <div className="mt-3">
           <button
             onClick={() => toast.info("Update .env to change defaults", undefined, 2200)}

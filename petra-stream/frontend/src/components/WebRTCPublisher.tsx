@@ -430,7 +430,10 @@ export default function WebRTCPublisher({
 
   async function startPublish(nextMode: PublishMode) {
     if (!whipUrl) {
-      toast.error("WHIP endpoint missing", "Configure VITE_WEBRTC_PUBLISH_URL");
+      toast.error(
+        "WHIP endpoint missing",
+        "Configure VITE_WEBRTC_PUBLISH_URL_CAMERA / VITE_WEBRTC_PUBLISH_URL_SCREEN (or enable VPS fallback)."
+      );
       return;
     }
     if (publishing) return;

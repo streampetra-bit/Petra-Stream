@@ -58,9 +58,11 @@ export default function CreatePage(): JSX.Element {
   });
   const [authUser, setAuthUser] = useState(readAuthUser());
 
+  const allowVpsFallback =
+    String(import.meta.env.VITE_ALLOW_VPS_FALLBACK || "false").toLowerCase() === "true";
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "";
-  const hlsBaseUrl = import.meta.env.VITE_HLS_BASE_URL || "";
-  const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
+  const hlsBaseUrl = allowVpsFallback ? import.meta.env.VITE_HLS_BASE_URL || "" : "";
+  const webrtcBaseUrl = allowVpsFallback ? import.meta.env.VITE_WEBRTC_PUBLISH_URL || "" : "";
   const cameraHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_CAMERA || "";
   const screenHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_SCREEN || "";
   const cameraPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_CAMERA || "";
@@ -642,9 +644,10 @@ export default function CreatePage(): JSX.Element {
       ? (screenPublishUrl || webrtcPublishUrl || webrtcBaseUrl)
       : (cameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl);
   const supportsBrowserStudio = Boolean(
-    normalizeBaseUrl(webrtcBaseUrl)
-    || normalizeBaseUrl(cameraPublishUrl)
+    normalizeBaseUrl(cameraPublishUrl)
     || normalizeBaseUrl(screenPublishUrl)
+    || normalizeBaseUrl(webrtcPublishUrl)
+    || normalizeBaseUrl(webrtcBaseUrl)
   );
   const dualPublishAvailable = Boolean(
     normalizeBaseUrl(cameraPublishUrl) && normalizeBaseUrl(screenPublishUrl)
@@ -1094,7 +1097,8 @@ export default function CreatePage(): JSX.Element {
               </div>
               {!supportsBrowserStudio ? (
                 <div className="text-xs text-amber-200/80">
-                  Browser streaming is disabled. Set VITE_WEBRTC_PUBLISH_URL to enable in-browser streaming.
+                  Browser streaming is disabled. Set VITE_WEBRTC_PUBLISH_URL_CAMERA / VITE_WEBRTC_PUBLISH_URL_SCREEN
+                  (or enable VITE_ALLOW_VPS_FALLBACK to use the VPS publish URL).
                 </div>
               ) : null}
             </section>
@@ -1248,7 +1252,8 @@ export default function CreatePage(): JSX.Element {
                 )
               ) : (
                 <div className="rounded-2xl border border-dashed border-amber-400/30 p-6 text-center text-sm text-amber-200/80">
-                  Browser studio is disabled. Enable WebRTC and set VITE_WEBRTC_PUBLISH_URL.
+                  Browser studio is disabled. Set VITE_WEBRTC_PUBLISH_URL_CAMERA / VITE_WEBRTC_PUBLISH_URL_SCREEN
+                  (or enable VITE_ALLOW_VPS_FALLBACK to use the VPS publish URL).
                 </div>
               )}
             </section>

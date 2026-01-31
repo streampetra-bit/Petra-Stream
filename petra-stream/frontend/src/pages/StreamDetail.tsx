@@ -98,7 +98,9 @@ export default function StreamDetail(): JSX.Element {
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
-  const hlsBaseUrl = String(import.meta.env.VITE_HLS_BASE_URL || "");
+  const allowVpsFallback =
+    String(import.meta.env.VITE_ALLOW_VPS_FALLBACK || "false").toLowerCase() === "true";
+  const hlsBaseUrl = allowVpsFallback ? String(import.meta.env.VITE_HLS_BASE_URL || "") : "";
   const currentUser =
     authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "You";
 
