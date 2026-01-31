@@ -29,6 +29,8 @@ export default function CreatePage(): JSX.Element {
   const [screenPlaybackUrl, setScreenPlaybackUrl] = useState("");
   const [cameraPlaybackUrl, setCameraPlaybackUrl] = useState("");
   const [sourceMode, setSourceMode] = useState<"camera" | "screen">("camera");
+  const [cameraBroadcasting, setCameraBroadcasting] = useState(false);
+  const [screenBroadcasting, setScreenBroadcasting] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [isPrepared, setIsPrepared] = useState(false);
   const [autoPlayback, setAutoPlayback] = useState(true);
@@ -59,6 +61,10 @@ export default function CreatePage(): JSX.Element {
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "";
   const hlsBaseUrl = import.meta.env.VITE_HLS_BASE_URL || "";
   const webrtcBaseUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL || "";
+  const cameraHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_CAMERA || "";
+  const screenHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_SCREEN || "";
+  const cameraPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_CAMERA || "";
+  const screenPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_SCREEN || "";
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
   const requireRegistry = String(import.meta.env.VITE_REQUIRE_STREAMER_REGISTRY || "false").toLowerCase() === "true";
   const requireWallet =
@@ -143,6 +149,15 @@ export default function CreatePage(): JSX.Element {
       setPlaybackUrl(resolvePlaybackUrl(hlsBaseUrl, streamKey));
     }
   }, [streamKey, hlsBaseUrl, autoPlayback]);
+
+  useEffect(() => {
+    if (!screenPlaybackUrl && screenHlsUrl) {
+      setScreenPlaybackUrl(screenHlsUrl);
+    }
+    if (!cameraPlaybackUrl && cameraHlsUrl) {
+      setCameraPlaybackUrl(cameraHlsUrl);
+    }
+  }, [screenHlsUrl, cameraHlsUrl, screenPlaybackUrl, cameraPlaybackUrl]);
 
   useEffect(() => {
     // simple uptime increment while live
@@ -444,13 +459,17 @@ export default function CreatePage(): JSX.Element {
     const identity = streamerId || authUser?.username || authUser?.address || authUser?.id;
     if (!identity) return;
     const basePlayback = (next?.playbackUrl ?? playbackUrl).trim();
+    const fallbackCamera = cameraHlsUrl.trim();
+    const fallbackScreen = screenHlsUrl.trim();
     const payload = {
       sourceMode: next?.sourceMode ?? sourceMode,
       screenPlaybackUrl:
         (next?.screenPlaybackUrl ?? screenPlaybackUrl).trim()
+        || fallbackScreen
         || (basePlayback && (next?.sourceMode ?? sourceMode) === "screen" ? basePlayback : undefined),
       cameraPlaybackUrl:
         (next?.cameraPlaybackUrl ?? cameraPlaybackUrl).trim()
+        || fallbackCamera
         || (basePlayback && (next?.sourceMode ?? sourceMode) === "camera" ? basePlayback : undefined),
     };
     try {
@@ -472,11 +491,16 @@ export default function CreatePage(): JSX.Element {
       if (!key) return false;
       const finalTitle = title.trim() || "Live Stream";
       if (!title.trim()) setTitle(finalTitle);
+      const fallbackPlaybackUrl =
+        sourceMode === "screen"
+          ? (screenHlsUrl.trim() || cameraHlsUrl.trim())
+          : (cameraHlsUrl.trim() || screenHlsUrl.trim());
       const derivedPlaybackUrl =
-        autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim();
-      const derivedScreenUrl = (screenPlaybackUrl || (sourceMode === "screen" ? derivedPlaybackUrl : "")).trim();
+        (autoPlayback && fallbackPlaybackUrl)
+        || (autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim());
+      const derivedScreenUrl = (screenPlaybackUrl || screenHlsUrl || (sourceMode === "screen" ? derivedPlaybackUrl : "")).trim();
       const derivedCameraUrl =
-        (cameraPlaybackUrl || (sourceMode === "camera" ? derivedPlaybackUrl : "")).trim();
+        (cameraPlaybackUrl || cameraHlsUrl || (sourceMode === "camera" ? derivedPlaybackUrl : "")).trim();
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       if (derivedScreenUrl) setScreenPlaybackUrl(derivedScreenUrl);
       if (derivedCameraUrl) setCameraPlaybackUrl(derivedCameraUrl);
@@ -577,9 +601,12 @@ export default function CreatePage(): JSX.Element {
     const prepared = await startStream(true, key);
     if (!prepared) return;
     if (!key) return;
-    const publishUrl = buildWebrtcPublishUrl(key);
+    const publishUrl = resolvedPublishUrl;
     if (!publishUrl) {
-      toast.error("WebRTC publish URL not configured", "Set VITE_WEBRTC_PUBLISH_URL or VITE_HLS_BASE_URL");
+      toast.error(
+        "WebRTC publish URL not configured",
+        "Set VITE_WEBRTC_PUBLISH_URL_* or VITE_WEBRTC_PUBLISH_URL"
+      );
       return;
     }
     if (window.location.protocol === "https:" && publishUrl.startsWith("http://")) {
@@ -605,9 +632,23 @@ export default function CreatePage(): JSX.Element {
   }
   const ingestServer = ingestUrl || "rtmp://165.227.224.72/live";
   const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
-  const previewSrc = playbackUrl || undefined;
+  const previewSrc =
+    sourceMode === "screen"
+      ? screenPlaybackUrl || screenHlsUrl || playbackUrl || undefined
+      : cameraPlaybackUrl || cameraHlsUrl || playbackUrl || undefined;
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
-  const supportsBrowserStudio = Boolean(normalizeBaseUrl(webrtcBaseUrl));
+  const resolvedPublishUrl =
+    sourceMode === "screen"
+      ? (screenPublishUrl || webrtcPublishUrl || webrtcBaseUrl)
+      : (cameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl);
+  const supportsBrowserStudio = Boolean(
+    normalizeBaseUrl(webrtcBaseUrl)
+    || normalizeBaseUrl(cameraPublishUrl)
+    || normalizeBaseUrl(screenPublishUrl)
+  );
+  const dualPublishAvailable = Boolean(
+    normalizeBaseUrl(cameraPublishUrl) && normalizeBaseUrl(screenPublishUrl)
+  );
   const isAuthed = Boolean(getAuthToken());
   const chatUser =
     authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "Creator";
@@ -1163,14 +1204,43 @@ export default function CreatePage(): JSX.Element {
               </div>
               {supportsBrowserStudio ? (
                 showPublisher ? (
-                  <WebRTCPublisher
-                    publishUrl={webrtcPublishUrl}
-                    disabled={loading}
-                    onModeChange={(mode) => {
-                      setSourceMode(mode);
-                      void updateStreamLayout({ sourceMode: mode });
-                    }}
-                  />
+                  dualPublishAvailable ? (
+                    <div className="grid gap-4">
+                      <WebRTCPublisher
+                        publishUrl={cameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
+                        fixedMode="camera"
+                        title="Camera studio"
+                        disabled={loading}
+                        onStarted={() => setCameraBroadcasting(true)}
+                        onStopped={() => setCameraBroadcasting(false)}
+                      />
+                      <WebRTCPublisher
+                        publishUrl={screenPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
+                        fixedMode="screen"
+                        title="Screen studio (PiP)"
+                        disabled={loading}
+                        onStarted={() => {
+                          setScreenBroadcasting(true);
+                          setSourceMode("screen");
+                          void updateStreamLayout({ sourceMode: "screen" });
+                        }}
+                        onStopped={() => {
+                          setScreenBroadcasting(false);
+                          setSourceMode("camera");
+                          void updateStreamLayout({ sourceMode: "camera" });
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <WebRTCPublisher
+                      publishUrl={resolvedPublishUrl}
+                      disabled={loading}
+                      onModeChange={(mode) => {
+                        setSourceMode(mode);
+                        void updateStreamLayout({ sourceMode: mode });
+                      }}
+                    />
+                  )
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
                     Click "Start broadcast" to open the studio controls and choose Camera or Screen.

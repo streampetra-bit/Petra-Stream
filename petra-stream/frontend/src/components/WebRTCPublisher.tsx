@@ -13,16 +13,21 @@ type EncodingProfile = {
 type WebRTCPublisherProps = {
   publishUrl: string;
   defaultMode?: PublishMode;
+  fixedMode?: PublishMode;
   disabled?: boolean;
   onStarted?: () => void;
   onStopped?: () => void;
   onModeChange?: (mode: PublishMode) => void;
+  title?: string;
 };
 
 function normalizeWhipUrl(input: string) {
   if (!input) return "";
   try {
     const url = new URL(input);
+    if (/\/webRTC\/publish$/i.test(url.pathname)) {
+      return url.toString();
+    }
     if (url.pathname.endsWith("/publish")) {
       url.pathname = url.pathname.replace(/\/publish$/, "/whip");
       return url.toString();
@@ -77,10 +82,12 @@ async function waitForIceComplete(pc: RTCPeerConnection) {
 export default function WebRTCPublisher({
   publishUrl,
   defaultMode = "camera",
+  fixedMode,
   disabled = false,
   onStarted,
   onStopped,
   onModeChange,
+  title,
 }: WebRTCPublisherProps): JSX.Element {
   const toast = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -88,6 +95,7 @@ export default function WebRTCPublisher({
   const streamRef = useRef<MediaStream | null>(null);
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
   const sessionUrlRef = useRef<string | null>(null);
+  const activePublishUrlRef = useRef<string | null>(null);
   const statsTimerRef = useRef<number | null>(null);
   const lastStatsRef = useRef<{ videoBytes: number; timestamp: number } | null>(null);
   const lastLossRef = useRef<{ lost: number; received: number } | null>(null);
@@ -120,6 +128,22 @@ export default function WebRTCPublisher({
   useEffect(() => {
     onModeChange?.(mode);
   }, [mode, onModeChange]);
+
+  useEffect(() => {
+    if (!fixedMode) return;
+    setMode(fixedMode);
+  }, [fixedMode]);
+
+  useEffect(() => {
+    if (!publishing) return;
+    const nextWhip = normalizeWhipUrl(publishUrl);
+    if (nextWhip && activePublishUrlRef.current && nextWhip !== activePublishUrlRef.current) {
+      void (async () => {
+        await stopPublish();
+        await startPublish(mode);
+      })();
+    }
+  }, [publishUrl, publishing, mode]);
 
   useEffect(() => {
     if (!publishing) {
@@ -466,6 +490,7 @@ export default function WebRTCPublisher({
         sessionUrlRef.current = new URL(location, whipUrl).toString();
       }
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      activePublishUrlRef.current = whipUrl;
       setPublishing(true);
       setStatus("Live");
       onStarted?.();
@@ -515,6 +540,7 @@ export default function WebRTCPublisher({
       }
       sessionUrlRef.current = null;
     }
+    activePublishUrlRef.current = null;
 
     if (publishing) {
       setPublishing(false);
@@ -549,35 +575,43 @@ export default function WebRTCPublisher({
     <div className="rounded-2xl border border-white/10 bg-black/40 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-white/10">
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-white/60 uppercase tracking-widest">Source</span>
-          <div className="inline-flex rounded-full border border-white/10 overflow-hidden">
-            <button
-              type="button"
-              className={clsx("px-3 py-1 text-[11px]", mode === "camera" ? "bg-white/10 text-text" : "text-white/60")}
-              onClick={() => (publishing ? void switchSource("camera") : setMode("camera"))}
-              disabled={disabled}
-            >
-              Camera
-            </button>
-            <button
-              type="button"
-              className={clsx("px-3 py-1 text-[11px]", mode === "screen" ? "bg-white/10 text-text" : "text-white/60")}
-              onClick={() => (publishing ? void switchSource("screen") : setMode("screen"))}
-              disabled={disabled}
-            >
-              Screen
-            </button>
-          </div>
-          <label className="inline-flex items-center gap-2 text-[11px] text-white/60">
-            <input
-              type="checkbox"
-              checked={shareSystemAudio}
-              onChange={(e) => setShareSystemAudio(e.target.checked)}
-              disabled={publishing}
-              className="rounded border-white/20 bg-transparent"
-            />
-            System audio
-          </label>
+          <span className="text-white/60 uppercase tracking-widest">{title || "Source"}</span>
+          {fixedMode ? (
+            <span className="px-2 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest text-white/70">
+              {fixedMode === "screen" ? "Screen" : "Camera"}
+            </span>
+          ) : (
+            <div className="inline-flex rounded-full border border-white/10 overflow-hidden">
+              <button
+                type="button"
+                className={clsx("px-3 py-1 text-[11px]", mode === "camera" ? "bg-white/10 text-text" : "text-white/60")}
+                onClick={() => (publishing ? void switchSource("camera") : setMode("camera"))}
+                disabled={disabled}
+              >
+                Camera
+              </button>
+              <button
+                type="button"
+                className={clsx("px-3 py-1 text-[11px]", mode === "screen" ? "bg-white/10 text-text" : "text-white/60")}
+                onClick={() => (publishing ? void switchSource("screen") : setMode("screen"))}
+                disabled={disabled}
+              >
+                Screen
+              </button>
+            </div>
+          )}
+          {mode === "screen" ? (
+            <label className="inline-flex items-center gap-2 text-[11px] text-white/60">
+              <input
+                type="checkbox"
+                checked={shareSystemAudio}
+                onChange={(e) => setShareSystemAudio(e.target.checked)}
+                disabled={publishing}
+                className="rounded border-white/20 bg-transparent"
+              />
+              System audio
+            </label>
+          ) : null}
         </div>
         <div className="flex items-center gap-2 text-xs">
           <span className={clsx("px-2 py-1 rounded-full border text-[10px] uppercase tracking-widest", publishing ? "border-emerald-400/40 text-emerald-200" : "border-white/10 text-white/60")}>
