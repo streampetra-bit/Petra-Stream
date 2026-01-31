@@ -127,6 +127,12 @@ export default function WebRTCPublisher({
   const [status, setStatus] = useState("Idle");
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [iceState, setIceState] = useState({
+    connection: "new",
+    gathering: "new",
+    ice: "new",
+  });
+  const [candidateCounts, setCandidateCounts] = useState({ host: 0, srflx: 0, relay: 0 });
   const [health, setHealth] = useState<{
     bitrateKbps?: number;
     fps?: number;
@@ -506,12 +512,19 @@ export default function WebRTCPublisher({
 
       pc.onicecandidate = (event) => {
         const candidate = event.candidate?.candidate || "";
-        if (candidate.includes(" typ srflx ") || candidate.includes(" typ relay ")) {
+        if (candidate.includes(" typ srflx ")) {
           hasPublicCandidateRef.current = true;
+          setCandidateCounts((prev) => ({ ...prev, srflx: prev.srflx + 1 }));
+        } else if (candidate.includes(" typ relay ")) {
+          hasPublicCandidateRef.current = true;
+          setCandidateCounts((prev) => ({ ...prev, relay: prev.relay + 1 }));
+        } else if (candidate.includes(" typ host ")) {
+          setCandidateCounts((prev) => ({ ...prev, host: prev.host + 1 }));
         }
       };
 
       pc.onicegatheringstatechange = () => {
+        setIceState((prev) => ({ ...prev, gathering: pc.iceGatheringState }));
         if (pc.iceGatheringState === "complete" && !hasPublicCandidateRef.current) {
           const canRetry = !triedRelayOnlyRef.current;
           if (!canRetry) {
@@ -522,13 +535,21 @@ export default function WebRTCPublisher({
         }
       };
 
+      pc.oniceconnectionstatechange = () => {
+        setIceState((prev) => ({ ...prev, ice: pc.iceConnectionState }));
+      };
+
       pc.onconnectionstatechange = () => {
+        setIceState((prev) => ({ ...prev, connection: pc.connectionState }));
         if (pc.connectionState === "connected") {
           setStatus("Live");
         } else if (pc.connectionState === "failed") {
           setStatus("Connection failed");
         }
       };
+
+      setIceState({ connection: pc.connectionState, gathering: pc.iceGatheringState, ice: pc.iceConnectionState });
+      setCandidateCounts({ host: 0, srflx: 0, relay: 0 });
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -693,6 +714,16 @@ export default function WebRTCPublisher({
               <span>{health.rttMs != null ? `${health.rttMs} ms` : "--"}</span>
             </div>
           ) : null}
+          <div className="hidden sm:flex items-center gap-2 text-[10px] text-white/50">
+            <span>ICE</span>
+            <span>{iceState.ice}</span>
+            <span>Gather</span>
+            <span>{iceState.gathering}</span>
+            <span>Conn</span>
+            <span>{iceState.connection}</span>
+            <span>H/S/R</span>
+            <span>{candidateCounts.host}/{candidateCounts.srflx}/{candidateCounts.relay}</span>
+          </div>
           {publishing ? (
             <button
               type="button"
