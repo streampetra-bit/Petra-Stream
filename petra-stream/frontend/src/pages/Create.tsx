@@ -637,10 +637,13 @@ export default function CreatePage(): JSX.Element {
   }
   const ingestServer = ingestUrl || "rtmp://165.227.224.72/live";
   const statusLabel = isLive ? "Live" : isPrepared ? "Waiting for live" : "Draft";
-  const previewSrc =
-    sourceMode === "screen"
-      ? screenPlaybackUrl || screenHlsUrl || playbackUrl || undefined
-      : cameraPlaybackUrl || cameraHlsUrl || playbackUrl || undefined;
+  const previewSrc = screenBroadcasting
+    ? (screenPlaybackUrl || screenHlsUrl || playbackUrl || undefined)
+    : cameraBroadcasting
+      ? (cameraPlaybackUrl || cameraHlsUrl || playbackUrl || undefined)
+      : sourceMode === "screen"
+        ? (screenPlaybackUrl || screenHlsUrl || playbackUrl || undefined)
+        : (cameraPlaybackUrl || cameraHlsUrl || playbackUrl || undefined);
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const resolvedPublishUrl =
     sourceMode === "screen"
@@ -1218,7 +1221,11 @@ export default function CreatePage(): JSX.Element {
                         fixedMode="camera"
                         title="Camera studio"
                         disabled={loading}
-                        onStarted={() => setCameraBroadcasting(true)}
+                        onStarted={() => {
+                          setCameraBroadcasting(true);
+                          setSourceMode("camera");
+                          void updateStreamLayout({ sourceMode: "camera" });
+                        }}
                         onStopped={() => setCameraBroadcasting(false)}
                       />
                       <WebRTCPublisher
