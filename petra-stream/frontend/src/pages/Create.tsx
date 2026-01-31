@@ -920,7 +920,7 @@ export default function CreatePage(): JSX.Element {
 
       <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-8 sm:py-10 lg:py-12 space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          <div className="lg:col-span-8 space-y-10">
+          <div className="lg:col-span-7 space-y-10">
             <section className="space-y-5">
               <div className="flex items-center gap-3">
                 <span className="h-px w-8 bg-primary/50" />
@@ -1077,23 +1077,8 @@ export default function CreatePage(): JSX.Element {
               )}
             </section>
           </div>
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <div className="lg:sticky lg:top-28 flex flex-col gap-6">
-              <div className="flex-1 min-h-0">
-                <ChatPanel
-                  streamId={String(streamRoomId)}
-                  currentUser={chatUser}
-                  variant="creator"
-                  showModerationPanel
-                  isModerator
-                  currentBadges={["owner"]}
-                  showTimestamps
-                  pinnedNotice="Creator mode: keep chat welcoming while you stream."
-                  emotes={defaultEmotes}
-                  heightClass="min-h-[420px] h-[clamp(420px,55vh,640px)]"
-                />
-              </div>
-
               <div className="glass-card rounded-3xl p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1132,6 +1117,21 @@ export default function CreatePage(): JSX.Element {
                     </span>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="flex-1 min-h-0">
+                <ChatPanel
+                  streamId={String(streamRoomId)}
+                  currentUser={chatUser}
+                  variant="creator"
+                  showModerationPanel
+                  isModerator
+                  currentBadges={["owner"]}
+                  showTimestamps
+                  pinnedNotice="Creator mode: keep chat welcoming while you stream."
+                  emotes={defaultEmotes}
+                  heightClass="min-h-[520px] h-[clamp(520px,65vh,760px)]"
+                />
               </div>
             </div>
           </div>
