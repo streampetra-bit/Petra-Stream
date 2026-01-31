@@ -115,6 +115,7 @@ export default function WebRTCPublisher({
   const sessionUrlRef = useRef<string | null>(null);
   const activePublishUrlRef = useRef<string | null>(null);
   const hasPublicCandidateRef = useRef(false);
+  const triedRelayOnlyRef = useRef(false);
   const statsTimerRef = useRef<number | null>(null);
   const lastStatsRef = useRef<{ videoBytes: number; timestamp: number } | null>(null);
   const lastLossRef = useRef<{ lost: number; received: number } | null>(null);
@@ -136,6 +137,7 @@ export default function WebRTCPublisher({
   } | null>(null);
 
   const whipUrl = normalizeWhipUrl(publishUrl);
+  const iceServers = parseIceServers();
 
   useEffect(() => {
     return () => {
@@ -447,7 +449,15 @@ export default function WebRTCPublisher({
     setStatus("Live");
   }
 
-  async function startPublish(nextMode: PublishMode) {
+  function pickIceServers(forceRelay: boolean) {
+    if (!forceRelay) return iceServers;
+    return iceServers.filter((server) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      return urls.some((u) => String(u).toLowerCase().startsWith("turn:"));
+    });
+  }
+
+  async function startPublish(nextMode: PublishMode, opts?: { forceRelay?: boolean }) {
     if (!whipUrl) {
       toast.error(
         "WHIP endpoint missing",
@@ -469,7 +479,15 @@ export default function WebRTCPublisher({
         await videoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({ iceServers: parseIceServers() });
+      const relayOnly = Boolean(opts?.forceRelay);
+      const selectedIce = pickIceServers(relayOnly);
+      if (relayOnly && selectedIce.length === 0) {
+        throw new Error("TURN servers missing (relay-only mode).");
+      }
+      const pc = new RTCPeerConnection({
+        iceServers: selectedIce,
+        iceTransportPolicy: relayOnly ? "relay" : "all",
+      });
       const videoTrack = stream.getVideoTracks()[0];
       const streamAudioTrack = stream.getAudioTracks()[0];
       if (videoTrack) {
@@ -484,6 +502,7 @@ export default function WebRTCPublisher({
         await applyEncoding(audioTx.sender, AUDIO_PROFILE);
       }
       pcRef.current = pc;
+      hasPublicCandidateRef.current = false;
 
       pc.onicecandidate = (event) => {
         const candidate = event.candidate?.candidate || "";
@@ -494,8 +513,12 @@ export default function WebRTCPublisher({
 
       pc.onicegatheringstatechange = () => {
         if (pc.iceGatheringState === "complete" && !hasPublicCandidateRef.current) {
-          setError("No public ICE candidates (srflx/relay). Check STUN/TURN.");
-          toast.error("ICE failed", "No public candidates found. Check STUN/TURN.", 3500);
+          const canRetry = !triedRelayOnlyRef.current;
+          if (!canRetry) {
+            setError("No public ICE candidates (srflx/relay). Check STUN/TURN.");
+            toast.error("ICE failed", "No public candidates found. Check STUN/TURN.", 3500);
+            return;
+          }
         }
       };
 
@@ -510,6 +533,13 @@ export default function WebRTCPublisher({
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await waitForIceComplete(pc);
+      if (!hasPublicCandidateRef.current && !triedRelayOnlyRef.current) {
+        triedRelayOnlyRef.current = true;
+        setStatus("Retrying with TURN...");
+        await stopPublish();
+        await startPublish(nextMode, { forceRelay: true });
+        return;
+      }
 
       setStatus("Connecting...");
       const res = await fetch(whipUrl, {
@@ -527,6 +557,7 @@ export default function WebRTCPublisher({
       }
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
       activePublishUrlRef.current = whipUrl;
+      triedRelayOnlyRef.current = false;
       setPublishing(true);
       setStatus("Live");
       onStarted?.();
