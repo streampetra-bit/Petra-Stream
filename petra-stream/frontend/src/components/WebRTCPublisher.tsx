@@ -450,7 +450,12 @@ export default function WebRTCPublisher({
         await videoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection();
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.cloudflare.com:3478" },
+          { urls: "stun:stun.l.google.com:19302" },
+        ],
+      });
       const videoTrack = stream.getVideoTracks()[0];
       const streamAudioTrack = stream.getAudioTracks()[0];
       if (videoTrack) {
