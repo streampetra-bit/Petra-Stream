@@ -485,6 +485,20 @@ export default function WebRTCPublisher({
       }
       pcRef.current = pc;
 
+      pc.onicecandidate = (event) => {
+        const candidate = event.candidate?.candidate || "";
+        if (candidate.includes(" typ srflx ") || candidate.includes(" typ relay ")) {
+          hasPublicCandidateRef.current = true;
+        }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete" && !hasPublicCandidateRef.current) {
+          setError("No public ICE candidates (srflx/relay). Check STUN/TURN.");
+          toast.error("ICE failed", "No public candidates found. Check STUN/TURN.", 3500);
+        }
+      };
+
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           setStatus("Live");
@@ -681,17 +695,3 @@ export default function WebRTCPublisher({
     </div>
   );
 }
-
-      pc.onicecandidate = (event) => {
-        const candidate = event.candidate?.candidate || "";
-        if (candidate.includes(" typ srflx ") || candidate.includes(" typ relay ")) {
-          hasPublicCandidateRef.current = true;
-        }
-      };
-
-      pc.onicegatheringstatechange = () => {
-        if (pc.iceGatheringState === "complete" && !hasPublicCandidateRef.current) {
-          setError("No public ICE candidates (srflx/relay). Check STUN/TURN.");
-          toast.error("ICE failed", "No public candidates found. Check STUN/TURN.", 3500);
-        }
-      };
