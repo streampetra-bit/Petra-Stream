@@ -973,7 +973,9 @@ export default function CreatePage(): JSX.Element {
               </div>
               <div className="mt-4 flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={primaryCtaAction}
+                  onClick={() => {
+                    void primaryCtaAction();
+                  }}
                   disabled={loading}
                   className="flex-1 h-14 bg-primary text-bg font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-glow-primary flex items-center justify-center gap-3"
                 >
@@ -1078,7 +1080,7 @@ export default function CreatePage(): JSX.Element {
             </section>
           </div>
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-28 flex flex-col gap-6">
+            <div className="lg:sticky lg:top-28 flex flex-col gap-8">
               <div className="glass-card rounded-3xl p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1119,7 +1121,7 @@ export default function CreatePage(): JSX.Element {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 mt-1">
                 <ChatPanel
                   streamId={String(streamRoomId)}
                   currentUser={chatUser}
