@@ -109,9 +109,12 @@ export default function CreatePage(): JSX.Element {
         setStreamerId(String(res.data.streamer ?? res.data.id ?? ""));
         const status = String(res.data.status ?? "");
         setIsLive(status === "online");
-        setPlaybackUrl(res.data.playbackUrl ?? "");
-        setScreenPlaybackUrl(res.data.screenPlaybackUrl ?? "");
-        setCameraPlaybackUrl(res.data.cameraPlaybackUrl ?? "");
+        const nextPlayback = String(res.data.playbackUrl ?? "").trim();
+        const nextScreen = String(res.data.screenPlaybackUrl ?? "").trim();
+        const nextCamera = String(res.data.cameraPlaybackUrl ?? "").trim();
+        setPlaybackUrl(nextPlayback || playbackUrl);
+        setScreenPlaybackUrl(nextScreen || screenPlaybackUrl || screenHlsUrl);
+        setCameraPlaybackUrl(nextCamera || cameraPlaybackUrl || cameraHlsUrl);
         setSourceMode(res.data.sourceMode === "screen" ? "screen" : "camera");
         setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
         return;
