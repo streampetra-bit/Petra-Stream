@@ -41,6 +41,24 @@ function normalizeWhipUrl(input: string) {
   }
 }
 
+function parseIceServers(): RTCIceServer[] {
+  const raw = (import.meta as any)?.env?.VITE_WEBRTC_ICE_SERVERS;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(Boolean);
+      }
+    } catch {
+      // ignore bad JSON
+    }
+  }
+  return [
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:stun.l.google.com:19302" },
+  ];
+}
+
 const CAMERA_PROFILE: EncodingProfile = {
   maxBitrate: 600_000,
   maxFramerate: 20,
@@ -96,6 +114,7 @@ export default function WebRTCPublisher({
   const audioTrackRef = useRef<MediaStreamTrack | null>(null);
   const sessionUrlRef = useRef<string | null>(null);
   const activePublishUrlRef = useRef<string | null>(null);
+  const hasPublicCandidateRef = useRef(false);
   const statsTimerRef = useRef<number | null>(null);
   const lastStatsRef = useRef<{ videoBytes: number; timestamp: number } | null>(null);
   const lastLossRef = useRef<{ lost: number; received: number } | null>(null);
@@ -450,12 +469,7 @@ export default function WebRTCPublisher({
         await videoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.cloudflare.com:3478" },
-          { urls: "stun:stun.l.google.com:19302" },
-        ],
-      });
+      const pc = new RTCPeerConnection({ iceServers: parseIceServers() });
       const videoTrack = stream.getVideoTracks()[0];
       const streamAudioTrack = stream.getAudioTracks()[0];
       if (videoTrack) {
@@ -668,3 +682,16 @@ export default function WebRTCPublisher({
   );
 }
 
+      pc.onicecandidate = (event) => {
+        const candidate = event.candidate?.candidate || "";
+        if (candidate.includes(" typ srflx ") || candidate.includes(" typ relay ")) {
+          hasPublicCandidateRef.current = true;
+        }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete" && !hasPublicCandidateRef.current) {
+          setError("No public ICE candidates (srflx/relay). Check STUN/TURN.");
+          toast.error("ICE failed", "No public candidates found. Check STUN/TURN.", 3500);
+        }
+      };
