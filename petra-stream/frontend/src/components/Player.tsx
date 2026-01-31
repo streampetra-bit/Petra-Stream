@@ -19,10 +19,11 @@ type PlayerProps = {
   heightClass?: string;
   autoPlay?: boolean;
   startMuted?: boolean;
+  showControls?: boolean;
 };
 
 const Player = forwardRef<PlayerHandle, PlayerProps>(
-  ({ src, poster, title, heightClass = "", autoPlay = false, startMuted = false }, ref) => {
+  ({ src, poster, title, heightClass = "", autoPlay = false, startMuted = false, showControls = true }, ref) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -286,51 +287,52 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(
         </div>
       )}
 
-      {/* Controls overlay */}
-      <div className="absolute left-4 bottom-4 right-4 flex items-center justify-between gap-3 pointer-events-auto">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => togglePlay()}
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-            className="rounded-full p-2 bg-black/60 hover:bg-black/70"
-          >
-            {isPlaying ? (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M6.5 5.25h3.75v13.5H6.5zM13.75 5.25h3.75v13.5h-3.75z" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M6.75 4.5v15l12-7.5-12-7.5z" />
-              </svg>
-            )}
-          </button>
+      {showControls ? (
+        <div className="absolute left-4 bottom-4 right-4 flex items-center justify-between gap-3 pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => togglePlay()}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              className="rounded-full p-2 bg-black/60 hover:bg-black/70"
+            >
+              {isPlaying ? (
+                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M6.5 5.25h3.75v13.5H6.5zM13.75 5.25h3.75v13.5h-3.75z" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M6.75 4.5v15l12-7.5-12-7.5z" />
+                </svg>
+              )}
+            </button>
 
-          <button onClick={() => toggleMute()} aria-label={muted ? 'Unmute' : 'Mute'} className="rounded-full p-2 bg-black/60 hover:bg-black/70">
-            {muted ? (
+            <button onClick={() => toggleMute()} aria-label={muted ? 'Unmute' : 'Mute'} className="rounded-full p-2 bg-black/60 hover:bg-black/70">
+              {muted ? (
+                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                  <path d="M15.5 9.5 20 14m0-4.5-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                </svg>
+              ) : (
+                <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                  <path d="M15 9.5a4 4 0 0 1 0 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  <path d="M17.5 7a7 7 0 0 1 0 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                </svg>
+              )}
+            </button>
+
+            <button onClick={() => requestFullscreen()} aria-label="Toggle Picture-in-Picture / Fullscreen" className="rounded-full p-2 bg-black/60 hover:bg-black/70">
               <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-                <path d="M15.5 9.5 20 14m0-4.5-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18-3v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3m10 0h3a2 2 0 0 0 2-2v-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            ) : (
-              <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M11 5 6.5 9H3v6h3.5L11 19V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-                <path d="M15 9.5a4 4 0 0 1 0 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                <path d="M17.5 7a7 7 0 0 1 0 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-              </svg>
-            )}
-          </button>
+            </button>
+          </div>
 
-          <button onClick={() => requestFullscreen()} aria-label="Toggle Picture-in-Picture / Fullscreen" className="rounded-full p-2 bg-black/60 hover:bg-black/70">
-            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18-3v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3m10 0h3a2 2 0 0 0 2-2v-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <div className="text-xs text-white/90 bg-black/40 px-2 py-1 rounded-md backdrop-blur-xs">
+            {title}
+          </div>
         </div>
-
-        <div className="text-xs text-white/90 bg-black/40 px-2 py-1 rounded-md backdrop-blur-xs">
-          {title}
-        </div>
-      </div>
+      ) : null}
 
       {error ? (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

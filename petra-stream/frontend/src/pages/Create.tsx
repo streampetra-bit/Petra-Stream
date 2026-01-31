@@ -26,6 +26,9 @@ export default function CreatePage(): JSX.Element {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [playbackUrl, setPlaybackUrl] = useState("");
+  const [screenPlaybackUrl, setScreenPlaybackUrl] = useState("");
+  const [cameraPlaybackUrl, setCameraPlaybackUrl] = useState("");
+  const [sourceMode, setSourceMode] = useState<"camera" | "screen">("camera");
   const [isLive, setIsLive] = useState(false);
   const [isPrepared, setIsPrepared] = useState(false);
   const [autoPlayback, setAutoPlayback] = useState(true);
@@ -75,6 +78,9 @@ export default function CreatePage(): JSX.Element {
     setStreamerId("");
     setIsLive(false);
     setPlaybackUrl("");
+    setScreenPlaybackUrl("");
+    setCameraPlaybackUrl("");
+    setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
     setLastPlaybackCheck(null);
@@ -96,6 +102,9 @@ export default function CreatePage(): JSX.Element {
         const status = String(res.data.status ?? "");
         setIsLive(status === "online");
         setPlaybackUrl(res.data.playbackUrl ?? "");
+        setScreenPlaybackUrl(res.data.screenPlaybackUrl ?? "");
+        setCameraPlaybackUrl(res.data.cameraPlaybackUrl ?? "");
+        setSourceMode(res.data.sourceMode === "screen" ? "screen" : "camera");
         setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
         return;
       }
@@ -426,6 +435,31 @@ export default function CreatePage(): JSX.Element {
     }
   }
 
+  async function updateStreamLayout(next?: {
+    sourceMode?: "camera" | "screen";
+    screenPlaybackUrl?: string;
+    cameraPlaybackUrl?: string;
+    playbackUrl?: string;
+  }) {
+    const identity = streamerId || authUser?.username || authUser?.address || authUser?.id;
+    if (!identity) return;
+    const basePlayback = (next?.playbackUrl ?? playbackUrl).trim();
+    const payload = {
+      sourceMode: next?.sourceMode ?? sourceMode,
+      screenPlaybackUrl:
+        (next?.screenPlaybackUrl ?? screenPlaybackUrl).trim()
+        || (basePlayback && (next?.sourceMode ?? sourceMode) === "screen" ? basePlayback : undefined),
+      cameraPlaybackUrl:
+        (next?.cameraPlaybackUrl ?? cameraPlaybackUrl).trim()
+        || (basePlayback && (next?.sourceMode ?? sourceMode) === "camera" ? basePlayback : undefined),
+    };
+    try {
+      await api.post(`/api/streams/${encodeURIComponent(identity)}/update`, payload);
+    } catch {
+      // ignore update failures to keep streaming flow responsive
+    }
+  }
+
   async function startStream(skipWalletCheck = false, overrideKey?: string): Promise<boolean> {
     if (!skipWalletCheck) {
       const ok = await ensureWalletIfRequired();
@@ -440,8 +474,21 @@ export default function CreatePage(): JSX.Element {
       if (!title.trim()) setTitle(finalTitle);
       const derivedPlaybackUrl =
         autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim();
+      const derivedScreenUrl = (screenPlaybackUrl || (sourceMode === "screen" ? derivedPlaybackUrl : "")).trim();
+      const derivedCameraUrl =
+        (cameraPlaybackUrl || (sourceMode === "camera" ? derivedPlaybackUrl : "")).trim();
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
-      const payload = { title: finalTitle, description: description.trim(), key, playbackUrl: derivedPlaybackUrl };
+      if (derivedScreenUrl) setScreenPlaybackUrl(derivedScreenUrl);
+      if (derivedCameraUrl) setCameraPlaybackUrl(derivedCameraUrl);
+      const payload = {
+        title: finalTitle,
+        description: description.trim(),
+        key,
+        playbackUrl: derivedPlaybackUrl,
+        sourceMode,
+        screenPlaybackUrl: derivedScreenUrl || undefined,
+        cameraPlaybackUrl: derivedCameraUrl || undefined,
+      };
       const res = await api.post("/api/streams/start", payload);
       if (res?.data?.streamer || res?.data?.id) {
         setStreamerId(String(res.data.streamer ?? res.data.id));
@@ -765,10 +812,10 @@ export default function CreatePage(): JSX.Element {
           Advanced settings
         </summary>
         <div className="mt-6 space-y-6">
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="text-xs subtle">Playback URL (HLS)</label>
-              <button
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-xs subtle">Playback URL (HLS)</label>
+                <button
                 type="button"
                 onClick={() => setAutoPlayback((s) => !s)}
                 className="text-xs px-2 py-1 rounded-md border border-white/10"
@@ -783,19 +830,69 @@ export default function CreatePage(): JSX.Element {
               placeholder={autoPlayback ? "Auto-generated from your stream key" : "https://your-cdn/stream.m3u8"}
               disabled={autoPlayback}
             />
-            <div className="mt-2">
-              <button
-                type="button"
-                onClick={testPlayback}
-                className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                disabled={checkingPlayback}
-              >
-                {checkingPlayback ? "Checking..." : "Test playback"}
-              </button>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={testPlayback}
+                  className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                  disabled={checkingPlayback}
+                >
+                  {checkingPlayback ? "Checking..." : "Test playback"}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-white/10 p-4 bg-white/5">
+            <div className="rounded-xl border border-white/10 p-4 bg-white/5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-xs subtle">Viewer layout</label>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-white/50">Active source</span>
+                  <select
+                    value={sourceMode}
+                    onChange={(e) => setSourceMode(e.target.value as "camera" | "screen")}
+                    className="rounded-md border border-white/10 bg-black/40 px-2 py-1 text-xs text-text"
+                  >
+                    <option value="camera">Camera</option>
+                    <option value="screen">Screen share</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] text-white/50">Screen share playback URL (HLS)</label>
+                <input
+                  value={screenPlaybackUrl}
+                  onChange={(e) => setScreenPlaybackUrl(e.target.value)}
+                  className="w-full p-2 mt-2 rounded-lg border border-white/10 bg-white/5 text-text text-sm"
+                  placeholder="https://your-cdn/screen/index.m3u8"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-white/50">Creator camera playback URL (HLS)</label>
+                <input
+                  value={cameraPlaybackUrl}
+                  onChange={(e) => setCameraPlaybackUrl(e.target.value)}
+                  className="w-full p-2 mt-2 rounded-lg border border-white/10 bg-white/5 text-text text-sm"
+                  placeholder="https://your-cdn/camera/index.m3u8"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void updateStreamLayout();
+                  }}
+                  className="px-3 py-2 rounded-md border border-white/10 text-xs"
+                  disabled={!streamerId && !authUser?.username && !authUser?.address && !authUser?.id}
+                >
+                  Apply layout
+                </button>
+                <span className="text-[11px] text-white/40">
+                  Used for the viewer PiP when screen share is active.
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 p-4 bg-white/5">
             <div className="text-xs subtle">OBS / External encoder</div>
             <div className="mt-2 text-sm">
               <div className="flex items-center justify-between gap-2">
@@ -1066,7 +1163,14 @@ export default function CreatePage(): JSX.Element {
               </div>
               {supportsBrowserStudio ? (
                 showPublisher ? (
-                  <WebRTCPublisher publishUrl={webrtcPublishUrl} disabled={loading} />
+                  <WebRTCPublisher
+                    publishUrl={webrtcPublishUrl}
+                    disabled={loading}
+                    onModeChange={(mode) => {
+                      setSourceMode(mode);
+                      void updateStreamLayout({ sourceMode: mode });
+                    }}
+                  />
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
                     Click "Start broadcast" to open the studio controls and choose Camera or Screen.

@@ -20,9 +20,14 @@ type Stream = {
   viewerCount?: number;
   playbackUrl?: string;
   videoUrl?: string;
+  screenPlaybackUrl?: string;
+  cameraPlaybackUrl?: string;
+  screenUrl?: string;
+  cameraUrl?: string;
   thumbnail?: string;
   tags?: string[];
   isLive?: boolean;
+  sourceMode?: "camera" | "screen";
 };
 
 type ActivityItem = {
@@ -358,6 +363,11 @@ export default function StreamDetail(): JSX.Element {
   const fallbackPoster =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDiux0GO7MxQbxJ21SEoyp6z6VvJSxmNY60g-YK-BoJ4mYzHyuAfpDT3LhX_smt_Rddp6Uf2pDoYSi16COw16t1dXUOozZHnUVutpgChyuMpOiXj-GIAMPJMEkMldSxVCBe30rxMSsKHK2kSf3LHiRvy7Oa5IwkKCAHcJRi2TDE8r3bY8HYYficQy6qp4R9Ah6iDjVFewo0xxeBiJ7cVvCIwmYlFIjyDoKY0mrPf3Vp3xUZy4QUd5Ym0JYC_ue9Q1JvmLejy7lM2KU";
   const playbackSrc = isLive ? normalizePlaybackUrl(stream?.playbackUrl ?? stream?.videoUrl) : undefined;
+  const screenSrc = isLive ? normalizePlaybackUrl(stream?.screenPlaybackUrl ?? stream?.screenUrl) : undefined;
+  const cameraSrc = isLive ? normalizePlaybackUrl(stream?.cameraPlaybackUrl ?? stream?.cameraUrl) : undefined;
+  const showScreenWithPip = isLive && !!screenSrc && (!!cameraSrc || stream?.sourceMode === "screen");
+  const mainSrc = screenSrc && stream?.sourceMode === "screen" ? screenSrc : (screenSrc || playbackSrc);
+  const pipSrc = screenSrc && cameraSrc ? cameraSrc : undefined;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
 
   function normalizePlaybackUrl(raw?: string) {
@@ -502,11 +512,29 @@ export default function StreamDetail(): JSX.Element {
               <div className="relative">
                 <Player
                   ref={playerRef}
-                  src={playbackSrc}
+                  src={mainSrc}
                   poster={posterSrc}
                   title={stream.title ?? "Live"}
                   heightClass="aspect-video"
                 />
+                {pipSrc ? (
+                  <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20">
+                    <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
+                      <Player
+                        src={pipSrc}
+                        poster={posterSrc}
+                        title={`${streamerLabel} camera`}
+                        heightClass="aspect-video"
+                        autoPlay
+                        startMuted
+                        showControls={false}
+                      />
+                      <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white">
+                        Creator cam
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-bg/90 via-bg/20 to-transparent" />
               </div>
 

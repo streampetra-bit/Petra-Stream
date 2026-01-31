@@ -16,6 +16,7 @@ type WebRTCPublisherProps = {
   disabled?: boolean;
   onStarted?: () => void;
   onStopped?: () => void;
+  onModeChange?: (mode: PublishMode) => void;
 };
 
 function normalizeWhipUrl(input: string) {
@@ -79,6 +80,7 @@ export default function WebRTCPublisher({
   disabled = false,
   onStarted,
   onStopped,
+  onModeChange,
 }: WebRTCPublisherProps): JSX.Element {
   const toast = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -114,6 +116,10 @@ export default function WebRTCPublisher({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    onModeChange?.(mode);
+  }, [mode, onModeChange]);
 
   useEffect(() => {
     if (!publishing) {

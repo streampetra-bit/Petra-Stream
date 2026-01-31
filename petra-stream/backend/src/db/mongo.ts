@@ -9,6 +9,9 @@ type StreamDoc = {
   streamKey?: string;
   tags?: string[];
   playbackUrl?: string;
+  screenPlaybackUrl?: string;
+  cameraPlaybackUrl?: string;
+  sourceMode?: string;
   thumbnail?: string;
   viewerCount?: number;
 };
@@ -62,6 +65,9 @@ const StreamModel = model<StreamDoc>(
       streamKey: String,
       tags: [String],
       playbackUrl: String,
+      screenPlaybackUrl: String,
+      cameraPlaybackUrl: String,
+      sourceMode: String,
       thumbnail: String,
       viewerCount: Number
     },

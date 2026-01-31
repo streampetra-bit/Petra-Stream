@@ -18,6 +18,9 @@ type StreamMeta = {
   status: 'online' | 'offline';
   streamKey?: string;
   playbackUrl?: string;
+  screenPlaybackUrl?: string;
+  cameraPlaybackUrl?: string;
+  sourceMode?: 'camera' | 'screen';
   thumbnail?: string;
   tags?: string[];
   viewerCount?: number;
@@ -163,17 +166,24 @@ export class StreamsService {
     return key;
   }
 
-  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string }) {
+  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; sourceMode?: 'camera' | 'screen' }) {
     const streamer = this.defaultStreamer(payload.streamer);
     const streamKey = payload.streamKey ?? payload.key ?? this.streams.get(streamer)?.streamKey;
     const hlsBase = process.env.MEDIA_HLS_BASE_URL || '';
     const normalizedBase = hlsBase.endsWith('/') ? hlsBase.slice(0, -1) : hlsBase;
     const playbackUrl = payload.playbackUrl || (normalizedBase && streamKey ? `${normalizedBase}/${streamKey}/index.m3u8` : undefined);
+    const sourceMode = payload.sourceMode;
+    const screenPlaybackUrl =
+      payload.screenPlaybackUrl ?? (sourceMode === 'screen' ? playbackUrl : undefined);
+    const cameraPlaybackUrl = payload.cameraPlaybackUrl;
     const meta: StreamMeta = {
       ...(this.streams.get(streamer) ?? { id: streamer, streamer }),
       title: payload.title,
       description: payload.description,
       playbackUrl,
+      screenPlaybackUrl,
+      cameraPlaybackUrl,
+      sourceMode,
       tags: payload.tags,
       streamKey,
       status: 'online',
@@ -298,6 +308,9 @@ export class StreamsService {
       status: (data.status as StreamMeta['status']) ?? 'offline',
       streamKey: data.streamKey,
       playbackUrl: data.playbackUrl,
+      screenPlaybackUrl: data.screenPlaybackUrl,
+      cameraPlaybackUrl: data.cameraPlaybackUrl,
+      sourceMode: data.sourceMode,
       thumbnail: data.thumbnail,
       tags: data.tags,
       viewerCount: data.viewerCount,
@@ -314,6 +327,9 @@ export class StreamsService {
       status: meta.status,
       streamKey: meta.streamKey,
       playbackUrl: meta.playbackUrl,
+      screenPlaybackUrl: meta.screenPlaybackUrl,
+      cameraPlaybackUrl: meta.cameraPlaybackUrl,
+      sourceMode: meta.sourceMode,
       thumbnail: meta.thumbnail,
       tags: meta.tags,
       viewerCount: meta.viewerCount

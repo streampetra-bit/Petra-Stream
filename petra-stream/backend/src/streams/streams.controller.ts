@@ -182,7 +182,13 @@ export class StreamsController {
     if (identity && identity.toLowerCase() !== id.toLowerCase()) {
       throw new ForbiddenException('Not allowed');
     }
-    return this.streams.updateMeta(id, { title: body.title, description: body.description });
+    return this.streams.updateMeta(id, {
+      title: body.title,
+      description: body.description,
+      sourceMode: body.sourceMode,
+      screenPlaybackUrl: body.screenPlaybackUrl,
+      cameraPlaybackUrl: body.cameraPlaybackUrl
+    });
   }
 
   // Tip helper: returns a placeholder contract payload if VAULT_ADDRESS is set
