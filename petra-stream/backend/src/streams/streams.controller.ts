@@ -3,12 +3,14 @@ import { StreamsService } from './streams.service';
 import { Interface, encodeBytes32String } from 'ethers';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CloudflareStreamService } from './cloudflare-stream.service';
 
 @Controller('api/streams')
 export class StreamsController {
   constructor(
     private readonly streams: StreamsService,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly cloudflare: CloudflareStreamService
   ) {}
 
   @Get('active')
@@ -28,6 +30,13 @@ export class StreamsController {
   me(@Req() req: any) {
     const identity = this.resolveIdentity(req);
     return this.streams.findById(identity);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('inputs')
+  async inputs(@Req() req: any) {
+    const identity = this.resolveIdentity(req);
+    return this.cloudflare.ensureInputs(identity);
   }
 
   @Get('top')

@@ -9,13 +9,22 @@ datasource db {
 }
 
 model Stream {
-  id        String   @id @default(uuid())
-  streamId  String   @unique
-  title     String?
-  streamer  String
-  streamKey String?  @unique
-  status    String   @default("offline")
-  createdAt DateTime @default(now())
+  id                         String   @id @default(uuid())
+  streamId                   String   @unique
+  title                      String?
+  streamer                   String
+  streamKey                  String?  @unique
+  status                     String   @default("offline")
+  createdAt                  DateTime @default(now())
+  cloudflareScreenInputId    String?  @unique
+  cloudflareCameraInputId    String?  @unique
+  cloudflareScreenPublishUrl String?
+  cloudflareCameraPublishUrl String?
+  cloudflareScreenRtmpsUrl   String?
+  cloudflareScreenRtmpsKey   String?
+  cloudflareCameraRtmpsUrl   String?
+  cloudflareCameraRtmpsKey   String?
+  cloudflareCustomerCode     String?
 }
 
 model Tip {

@@ -45,6 +45,8 @@ export default function CreatePage(): JSX.Element {
   const [royaltyPct, setRoyaltyPct] = useState(8);
   const [showWalletHelp, setShowWalletHelp] = useState(false);
   const [registeringWallet, setRegisteringWallet] = useState(false);
+  const [cameraPublishOverride, setCameraPublishOverride] = useState("");
+  const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -67,6 +69,8 @@ export default function CreatePage(): JSX.Element {
   const screenHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_SCREEN || "";
   const cameraPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_CAMERA || "";
   const screenPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_SCREEN || "";
+  const resolvedCameraPublishUrl = cameraPublishOverride || cameraPublishUrl;
+  const resolvedScreenPublishUrl = screenPublishOverride || screenPublishUrl;
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
   const requireRegistry = String(import.meta.env.VITE_REQUIRE_STREAMER_REGISTRY || "false").toLowerCase() === "true";
   const requireWallet =
@@ -88,6 +92,8 @@ export default function CreatePage(): JSX.Element {
     setPlaybackUrl("");
     setScreenPlaybackUrl("");
     setCameraPlaybackUrl("");
+    setScreenPublishOverride("");
+    setCameraPublishOverride("");
     setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
@@ -125,8 +131,34 @@ export default function CreatePage(): JSX.Element {
     if (resetOnMissing) resetStreamState();
   }
 
+  async function loadCloudflareInputs() {
+    if (!getAuthToken()) return;
+    try {
+      const res = await api.get("/api/streams/inputs").catch(() => null);
+      const data = res?.data;
+      if (!data) return;
+
+      const nextScreenPlayback = String(data?.screen?.playbackUrl || "").trim();
+      const nextCameraPlayback = String(data?.camera?.playbackUrl || "").trim();
+      const nextScreenPublish = String(data?.screen?.publishUrl || "").trim();
+      const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
+
+      if (nextScreenPlayback && (!screenPlaybackUrl || screenPlaybackUrl === screenHlsUrl)) {
+        setScreenPlaybackUrl(nextScreenPlayback);
+      }
+      if (nextCameraPlayback && (!cameraPlaybackUrl || cameraPlaybackUrl === cameraHlsUrl)) {
+        setCameraPlaybackUrl(nextCameraPlayback);
+      }
+      if (nextScreenPublish) setScreenPublishOverride(nextScreenPublish);
+      if (nextCameraPublish) setCameraPublishOverride(nextCameraPublish);
+    } catch {
+      // ignore if Cloudflare inputs are not configured
+    }
+  }
+
   useEffect(() => {
     void loadStreamState(true);
+    void loadCloudflareInputs();
     return () => {
       if (uptimeTimer.current) window.clearInterval(uptimeTimer.current);
     };
@@ -137,6 +169,7 @@ export default function CreatePage(): JSX.Element {
       setAuthUser(readAuthUser());
       setShowPublisher(false);
       void loadStreamState(true);
+      void loadCloudflareInputs();
     };
     window.addEventListener("auth-changed", handler);
     return () => window.removeEventListener("auth-changed", handler);
@@ -498,8 +531,8 @@ export default function CreatePage(): JSX.Element {
       if (!title.trim()) setTitle(finalTitle);
       const fallbackPlaybackUrl =
         sourceMode === "screen"
-          ? (screenHlsUrl.trim() || cameraHlsUrl.trim())
-          : (cameraHlsUrl.trim() || screenHlsUrl.trim());
+          ? ((screenPlaybackUrl || screenHlsUrl).trim() || (cameraPlaybackUrl || cameraHlsUrl).trim())
+          : ((cameraPlaybackUrl || cameraHlsUrl).trim() || (screenPlaybackUrl || screenHlsUrl).trim());
       const derivedPlaybackUrl =
         (autoPlayback && fallbackPlaybackUrl)
         || (autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim());
@@ -647,16 +680,17 @@ export default function CreatePage(): JSX.Element {
   const webrtcPublishUrl = buildWebrtcPublishUrl(streamKey);
   const resolvedPublishUrl =
     sourceMode === "screen"
-      ? (screenPublishUrl || webrtcPublishUrl || webrtcBaseUrl)
-      : (cameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl);
+      ? (resolvedScreenPublishUrl || webrtcPublishUrl || webrtcBaseUrl)
+      : (resolvedCameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl);
+  const studioUrl = resolvedPublishUrl || webrtcPublishUrl || "";
   const supportsBrowserStudio = Boolean(
-    normalizeBaseUrl(cameraPublishUrl)
-    || normalizeBaseUrl(screenPublishUrl)
+    normalizeBaseUrl(resolvedCameraPublishUrl)
+    || normalizeBaseUrl(resolvedScreenPublishUrl)
     || normalizeBaseUrl(webrtcPublishUrl)
     || normalizeBaseUrl(webrtcBaseUrl)
   );
   const dualPublishAvailable = Boolean(
-    normalizeBaseUrl(cameraPublishUrl) && normalizeBaseUrl(screenPublishUrl)
+    normalizeBaseUrl(resolvedCameraPublishUrl) && normalizeBaseUrl(resolvedScreenPublishUrl)
   );
   const isAuthed = Boolean(getAuthToken());
   const chatUser =
@@ -989,7 +1023,7 @@ export default function CreatePage(): JSX.Element {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="subtle">Studio URL</span>
-                <span className="font-mono text-[10px] text-text">{webrtcPublishUrl || "not-set"}</span>
+                <span className="font-mono text-[10px] text-text">{studioUrl || "not-set"}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="subtle">Playback URL</span>
@@ -1026,9 +1060,9 @@ export default function CreatePage(): JSX.Element {
               </button>
               <button
                 type="button"
-                onClick={() => copyText("Studio URL", webrtcPublishUrl)}
+                onClick={() => copyText("Studio URL", studioUrl)}
                 className="px-3 py-2 rounded-md border border-white/10 text-xs"
-                disabled={!webrtcPublishUrl}
+                disabled={!studioUrl}
               >
                 Copy studio URL
               </button>
@@ -1217,7 +1251,7 @@ export default function CreatePage(): JSX.Element {
                   dualPublishAvailable ? (
                     <div className="grid gap-4">
                       <WebRTCPublisher
-                        publishUrl={cameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
+                        publishUrl={resolvedCameraPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
                         fixedMode="camera"
                         title="Camera studio"
                         disabled={loading}
@@ -1229,7 +1263,7 @@ export default function CreatePage(): JSX.Element {
                         onStopped={() => setCameraBroadcasting(false)}
                       />
                       <WebRTCPublisher
-                        publishUrl={screenPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
+                        publishUrl={resolvedScreenPublishUrl || webrtcPublishUrl || webrtcBaseUrl}
                         fixedMode="screen"
                         title="Screen studio (PiP)"
                         disabled={loading}
