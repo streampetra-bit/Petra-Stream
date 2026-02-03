@@ -144,6 +144,10 @@ export default function WebRTCPlayer({
       pcRef.current = null;
 
       if (res.status === 409 || res.status === 404) {
+        const conflictLocation = res.headers.get("location");
+        if (conflictLocation) {
+          await fetch(conflictLocation, { method: "DELETE" }).catch(() => {});
+        }
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
       }
