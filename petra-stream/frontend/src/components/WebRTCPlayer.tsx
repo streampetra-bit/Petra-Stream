@@ -116,20 +116,38 @@ export default function WebRTCPlayer({
     await pc.setLocalDescription(offer);
     await waitForIceComplete(pc);
 
-    const res = await fetch(playbackUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/sdp" },
-      body: pc.localDescription?.sdp || "",
-    });
-    if (!res.ok) {
+    const maxAttempts = 4;
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      const res = await fetch(playbackUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/sdp",
+          Accept: "application/sdp",
+        },
+        body: pc.localDescription?.sdp || "",
+      });
+      if (res.ok) {
+        const answer = await res.text();
+        const location = res.headers.get("location");
+        if (location) sessionUrlRef.current = location;
+        await pc.setRemoteDescription({ type: "answer", sdp: answer });
+        setStatus("Live");
+        return;
+      }
+
+      if (res.status === 409 || res.status === 404) {
+        // Stream not ready or session conflict; retry after brief delay
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+
       setError(`Playback failed (${res.status})`);
       return;
     }
-    const answer = await res.text();
-    const location = res.headers.get("location");
-    if (location) sessionUrlRef.current = location;
-    await pc.setRemoteDescription({ type: "answer", sdp: answer });
-    setStatus("Live");
+
+    setError("Playback not ready");
   }
 
   function toggleMute() {
