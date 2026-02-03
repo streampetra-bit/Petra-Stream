@@ -6,6 +6,7 @@ import api from "../lib/api";
 import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
+import WebRTCPlayer from "../components/WebRTCPlayer";
 import LocalRecorder from "../components/LocalRecorder";
 import ChatPanel from "../components/ChatPanel";
 import { defaultEmotes } from "../components/chat/emotes";
@@ -47,6 +48,8 @@ export default function CreatePage(): JSX.Element {
   const [registeringWallet, setRegisteringWallet] = useState(false);
   const [cameraPublishOverride, setCameraPublishOverride] = useState("");
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
+  const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
+  const [screenWebrtcPlaybackUrl, setScreenWebrtcPlaybackUrl] = useState("");
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -92,6 +95,8 @@ export default function CreatePage(): JSX.Element {
     setPlaybackUrl("");
     setScreenPlaybackUrl("");
     setCameraPlaybackUrl("");
+    setScreenWebrtcPlaybackUrl("");
+    setCameraWebrtcPlaybackUrl("");
     setScreenPublishOverride("");
     setCameraPublishOverride("");
     setSourceMode("camera");
@@ -142,6 +147,8 @@ export default function CreatePage(): JSX.Element {
       const nextCameraPlayback = String(data?.camera?.playbackUrl || "").trim();
       const nextScreenPublish = String(data?.screen?.publishUrl || "").trim();
       const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
+      const nextScreenWebrtcPlayback = String(data?.screen?.webrtcPlaybackUrl || "").trim();
+      const nextCameraWebrtcPlayback = String(data?.camera?.webrtcPlaybackUrl || "").trim();
 
       if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
@@ -151,6 +158,8 @@ export default function CreatePage(): JSX.Element {
       }
       if (nextScreenPublish) setScreenPublishOverride(nextScreenPublish);
       if (nextCameraPublish) setCameraPublishOverride(nextCameraPublish);
+      if (nextScreenWebrtcPlayback) setScreenWebrtcPlaybackUrl(nextScreenWebrtcPlayback);
+      if (nextCameraWebrtcPlayback) setCameraWebrtcPlaybackUrl(nextCameraWebrtcPlayback);
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -557,6 +566,13 @@ export default function CreatePage(): JSX.Element {
         sourceMode,
         screenPlaybackUrl: derivedScreenUrl || undefined,
         cameraPlaybackUrl: derivedCameraUrl || undefined,
+        screenWebrtcPlaybackUrl: screenWebrtcPlaybackUrl || undefined,
+        cameraWebrtcPlaybackUrl: cameraWebrtcPlaybackUrl || undefined,
+        webrtcPlaybackUrl:
+          (sourceMode === "screen" ? screenWebrtcPlaybackUrl : cameraWebrtcPlaybackUrl)
+          || screenWebrtcPlaybackUrl
+          || cameraWebrtcPlaybackUrl
+          || undefined,
       };
       const res = await api.post("/api/streams/start", payload);
       if (res?.data?.streamer || res?.data?.id) {
@@ -1185,13 +1201,38 @@ export default function CreatePage(): JSX.Element {
             <section className="relative">
               <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-primary/30 to-accent/30 blur-2xl opacity-40" />
               <div className="relative glass-card rounded-[2.5rem] p-3">
-                <div className="relative rounded-[2rem] overflow-hidden bg-bg/70">
-                  <div className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-bg/20 pointer-events-none" />
-                  <Player heightClass="aspect-video" title={title || "Broadcast preview"} src={previewSrc} autoPlay startMuted />
-                  <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-bg/60 px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-text">
-                    {broadcastLabel}
-                  </div>
+              <div className="relative rounded-[2rem] overflow-hidden bg-bg/70">
+                <div className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-bg/20 pointer-events-none" />
+                {(() => {
+                  const webRtcSrc =
+                    sourceMode === "screen"
+                      ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
+                      : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
+                  if (webRtcSrc) {
+                    return (
+                      <WebRTCPlayer
+                        heightClass="aspect-video"
+                        title={title || "Broadcast preview"}
+                        playbackUrl={webRtcSrc}
+                        autoPlay
+                        startMuted
+                      />
+                    );
+                  }
+                  return (
+                    <Player
+                      heightClass="aspect-video"
+                      title={title || "Broadcast preview"}
+                      src={previewSrc}
+                      autoPlay
+                      startMuted
+                    />
+                  );
+                })()}
+                <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-bg/60 px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-text">
+                  {broadcastLabel}
                 </div>
+              </div>
               </div>
               <div className="mt-4 flex items-center justify-between text-xs text-white/50 px-2">
                 <span>Live preview</span>

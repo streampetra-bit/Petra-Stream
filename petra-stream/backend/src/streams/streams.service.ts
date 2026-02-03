@@ -20,6 +20,9 @@ type StreamMeta = {
   playbackUrl?: string;
   screenPlaybackUrl?: string;
   cameraPlaybackUrl?: string;
+  webrtcPlaybackUrl?: string;
+  screenWebrtcPlaybackUrl?: string;
+  cameraWebrtcPlaybackUrl?: string;
   sourceMode?: 'camera' | 'screen';
   thumbnail?: string;
   tags?: string[];
@@ -166,7 +169,7 @@ export class StreamsService {
     return key;
   }
 
-  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; sourceMode?: 'camera' | 'screen' }) {
+  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; screenWebrtcPlaybackUrl?: string; cameraWebrtcPlaybackUrl?: string; webrtcPlaybackUrl?: string; sourceMode?: 'camera' | 'screen' }) {
     const streamer = this.defaultStreamer(payload.streamer);
     const streamKey = payload.streamKey ?? payload.key ?? this.streams.get(streamer)?.streamKey;
     const hlsBase = process.env.MEDIA_HLS_BASE_URL || '';
@@ -183,6 +186,9 @@ export class StreamsService {
       playbackUrl,
       screenPlaybackUrl,
       cameraPlaybackUrl,
+      webrtcPlaybackUrl: payload.webrtcPlaybackUrl ?? this.streams.get(streamer)?.webrtcPlaybackUrl,
+      screenWebrtcPlaybackUrl: payload.screenWebrtcPlaybackUrl ?? this.streams.get(streamer)?.screenWebrtcPlaybackUrl,
+      cameraWebrtcPlaybackUrl: payload.cameraWebrtcPlaybackUrl ?? this.streams.get(streamer)?.cameraWebrtcPlaybackUrl,
       sourceMode,
       tags: payload.tags,
       streamKey,
@@ -310,6 +316,9 @@ export class StreamsService {
       playbackUrl: data.playbackUrl,
       screenPlaybackUrl: data.screenPlaybackUrl,
       cameraPlaybackUrl: data.cameraPlaybackUrl,
+      webrtcPlaybackUrl: data.webrtcPlaybackUrl,
+      screenWebrtcPlaybackUrl: data.screenWebrtcPlaybackUrl,
+      cameraWebrtcPlaybackUrl: data.cameraWebrtcPlaybackUrl,
       sourceMode: data.sourceMode,
       thumbnail: data.thumbnail,
       tags: data.tags,
@@ -329,6 +338,9 @@ export class StreamsService {
       playbackUrl: meta.playbackUrl,
       screenPlaybackUrl: meta.screenPlaybackUrl,
       cameraPlaybackUrl: meta.cameraPlaybackUrl,
+      webrtcPlaybackUrl: meta.webrtcPlaybackUrl,
+      screenWebrtcPlaybackUrl: meta.screenWebrtcPlaybackUrl,
+      cameraWebrtcPlaybackUrl: meta.cameraWebrtcPlaybackUrl,
       sourceMode: meta.sourceMode,
       thumbnail: meta.thumbnail,
       tags: meta.tags,

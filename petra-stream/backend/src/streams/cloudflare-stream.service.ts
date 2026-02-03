@@ -15,6 +15,7 @@ type CloudflareInputInfo = {
   playbackUrl?: string;
   rtmpsUrl?: string;
   rtmpsStreamKey?: string;
+  webrtcPlaybackUrl?: string;
 };
 
 @Injectable()
@@ -80,6 +81,15 @@ export class CloudflareStreamService {
       throw new Error(message);
     }
     return payload;
+  }
+
+  async getLiveInputDetails(inputId: string): Promise<any> {
+    if (!inputId) return null;
+    const payload = await this.request(
+      `/accounts/${this.accountId}/stream/live_inputs/${inputId}`,
+      { method: 'GET' }
+    );
+    return payload?.result ?? null;
   }
 
   async getLiveInputStatus(inputId: string): Promise<string> {
@@ -187,12 +197,16 @@ export class CloudflareStreamService {
       this.parseCustomerCode(screenPublishUrl || cameraPublishUrl) ||
       null;
 
+    const screenDetails = screenInputId ? await this.getLiveInputDetails(screenInputId).catch(() => null) : null;
+    const cameraDetails = cameraInputId ? await this.getLiveInputDetails(cameraInputId).catch(() => null) : null;
+
     const screen: CloudflareInputInfo = {
       inputId: screenInputId,
       publishUrl: screenPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, screenInputId) : undefined,
       rtmpsUrl: screenRtmpsUrl || undefined,
-      rtmpsStreamKey: screenRtmpsKey || undefined
+      rtmpsStreamKey: screenRtmpsKey || undefined,
+      webrtcPlaybackUrl: screenDetails?.webRTCPlayback?.url || undefined
     };
 
     const camera: CloudflareInputInfo = {
@@ -200,7 +214,8 @@ export class CloudflareStreamService {
       publishUrl: cameraPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, cameraInputId) : undefined,
       rtmpsUrl: cameraRtmpsUrl || undefined,
-      rtmpsStreamKey: cameraRtmpsKey || undefined
+      rtmpsStreamKey: cameraRtmpsKey || undefined,
+      webrtcPlaybackUrl: cameraDetails?.webRTCPlayback?.url || undefined
     };
 
     return {

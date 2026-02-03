@@ -11,6 +11,9 @@ type StreamDoc = {
   playbackUrl?: string;
   screenPlaybackUrl?: string;
   cameraPlaybackUrl?: string;
+  webrtcPlaybackUrl?: string;
+  screenWebrtcPlaybackUrl?: string;
+  cameraWebrtcPlaybackUrl?: string;
   sourceMode?: string;
   thumbnail?: string;
   viewerCount?: number;
@@ -67,6 +70,9 @@ const StreamModel = model<StreamDoc>(
       playbackUrl: String,
       screenPlaybackUrl: String,
       cameraPlaybackUrl: String,
+      webrtcPlaybackUrl: String,
+      screenWebrtcPlaybackUrl: String,
+      cameraWebrtcPlaybackUrl: String,
       sourceMode: String,
       thumbnail: String,
       viewerCount: Number

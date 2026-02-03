@@ -7,6 +7,7 @@ import ChatPanel from "../components/ChatPanel";
 import { defaultEmotes } from "../components/chat/emotes";
 import ViewerList from "../components/ViewerList";
 import Player, { PlayerHandle } from "../components/Player";
+import WebRTCPlayer from "../components/WebRTCPlayer";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
@@ -22,6 +23,9 @@ type Stream = {
   videoUrl?: string;
   screenPlaybackUrl?: string;
   cameraPlaybackUrl?: string;
+  webrtcPlaybackUrl?: string;
+  screenWebrtcPlaybackUrl?: string;
+  cameraWebrtcPlaybackUrl?: string;
   screenUrl?: string;
   cameraUrl?: string;
   thumbnail?: string;
@@ -367,9 +371,18 @@ export default function StreamDetail(): JSX.Element {
   const playbackSrc = isLive ? normalizePlaybackUrl(stream?.playbackUrl ?? stream?.videoUrl) : undefined;
   const screenSrc = isLive ? normalizePlaybackUrl(stream?.screenPlaybackUrl ?? stream?.screenUrl) : undefined;
   const cameraSrc = isLive ? normalizePlaybackUrl(stream?.cameraPlaybackUrl ?? stream?.cameraUrl) : undefined;
+  const screenWebrtcSrc = isLive ? stream?.screenWebrtcPlaybackUrl : undefined;
+  const cameraWebrtcSrc = isLive ? stream?.cameraWebrtcPlaybackUrl : undefined;
+  const webrtcSrc = isLive ? stream?.webrtcPlaybackUrl : undefined;
   const showScreenWithPip = isLive && !!screenSrc && (!!cameraSrc || stream?.sourceMode === "screen");
   const mainSrc = screenSrc && stream?.sourceMode === "screen" ? screenSrc : (screenSrc || playbackSrc);
   const pipSrc = screenSrc && cameraSrc ? cameraSrc : undefined;
+  const mainWebrtcSrc =
+    (stream?.sourceMode === "screen" ? screenWebrtcSrc : cameraWebrtcSrc)
+    || screenWebrtcSrc
+    || cameraWebrtcSrc
+    || webrtcSrc;
+  const pipWebrtcSrc = screenWebrtcSrc && cameraWebrtcSrc ? cameraWebrtcSrc : undefined;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
 
   function normalizePlaybackUrl(raw?: string) {
@@ -512,25 +525,46 @@ export default function StreamDetail(): JSX.Element {
             <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/60 shadow-[0_25px_60px_rgba(2,6,23,0.6)]">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-bg/60 to-accent/10" />
               <div className="relative">
-                <Player
-                  ref={playerRef}
-                  src={mainSrc}
-                  poster={posterSrc}
-                  title={stream.title ?? "Live"}
-                  heightClass="aspect-video"
-                />
+                {mainWebrtcSrc ? (
+                  <WebRTCPlayer
+                    playbackUrl={mainWebrtcSrc}
+                    title={stream.title ?? "Live"}
+                    heightClass="aspect-video"
+                    autoPlay
+                    startMuted
+                  />
+                ) : (
+                  <Player
+                    ref={playerRef}
+                    src={mainSrc}
+                    poster={posterSrc}
+                    title={stream.title ?? "Live"}
+                    heightClass="aspect-video"
+                  />
+                )}
                 {pipSrc ? (
                   <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20">
                     <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
-                      <Player
-                        src={pipSrc}
-                        poster={posterSrc}
-                        title={`${streamerLabel} camera`}
-                        heightClass="aspect-video"
-                        autoPlay
-                        startMuted
-                        showControls={false}
-                      />
+                      {pipWebrtcSrc ? (
+                        <WebRTCPlayer
+                          playbackUrl={pipWebrtcSrc}
+                          title={`${streamerLabel} camera`}
+                          heightClass="aspect-video"
+                          autoPlay
+                          startMuted
+                          showControls={false}
+                        />
+                      ) : (
+                        <Player
+                          src={pipSrc}
+                          poster={posterSrc}
+                          title={`${streamerLabel} camera`}
+                          heightClass="aspect-video"
+                          autoPlay
+                          startMuted
+                          showControls={false}
+                        />
+                      )}
                       <div className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white">
                         Creator cam
                       </div>
