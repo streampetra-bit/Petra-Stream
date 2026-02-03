@@ -7,6 +7,7 @@ import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import WebRTCPlayer from "../components/WebRTCPlayer";
+import CloudflareIframePlayer from "../components/CloudflareIframePlayer";
 import LocalRecorder from "../components/LocalRecorder";
 import ChatPanel from "../components/ChatPanel";
 import { defaultEmotes } from "../components/chat/emotes";
@@ -50,6 +51,10 @@ export default function CreatePage(): JSX.Element {
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
   const [screenWebrtcPlaybackUrl, setScreenWebrtcPlaybackUrl] = useState("");
+  const [cloudflareCustomerCode, setCloudflareCustomerCode] = useState("");
+  const [screenInputId, setScreenInputId] = useState("");
+  const [cameraInputId, setCameraInputId] = useState("");
+  const [useIframePreview, setUseIframePreview] = useState(false);
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -99,6 +104,10 @@ export default function CreatePage(): JSX.Element {
     setCameraWebrtcPlaybackUrl("");
     setScreenPublishOverride("");
     setCameraPublishOverride("");
+    setCloudflareCustomerCode("");
+    setScreenInputId("");
+    setCameraInputId("");
+    setUseIframePreview(false);
     setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
@@ -149,6 +158,9 @@ export default function CreatePage(): JSX.Element {
       const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
       const nextScreenWebrtcPlayback = String(data?.screen?.webrtcPlaybackUrl || "").trim();
       const nextCameraWebrtcPlayback = String(data?.camera?.webrtcPlaybackUrl || "").trim();
+      const nextCustomerCode = String(data?.customerCode || "").trim();
+      const nextScreenInputId = String(data?.screen?.inputId || "").trim();
+      const nextCameraInputId = String(data?.camera?.inputId || "").trim();
 
       if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
@@ -160,6 +172,9 @@ export default function CreatePage(): JSX.Element {
       if (nextCameraPublish) setCameraPublishOverride(nextCameraPublish);
       if (nextScreenWebrtcPlayback) setScreenWebrtcPlaybackUrl(nextScreenWebrtcPlayback);
       if (nextCameraWebrtcPlayback) setCameraWebrtcPlaybackUrl(nextCameraWebrtcPlayback);
+      if (nextCustomerCode) setCloudflareCustomerCode(nextCustomerCode);
+      if (nextScreenInputId) setScreenInputId(nextScreenInputId);
+      if (nextCameraInputId) setCameraInputId(nextCameraInputId);
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -1208,6 +1223,19 @@ export default function CreatePage(): JSX.Element {
                     sourceMode === "screen"
                       ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
                       : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
+                  const iframeInputId = sourceMode === "screen"
+                    ? (screenInputId || cameraInputId)
+                    : (cameraInputId || screenInputId);
+                  if (useIframePreview && iframeInputId && cloudflareCustomerCode) {
+                    return (
+                      <CloudflareIframePlayer
+                        customerCode={cloudflareCustomerCode}
+                        inputId={iframeInputId}
+                        title={title || "Broadcast preview"}
+                        heightClass="aspect-video"
+                      />
+                    );
+                  }
                   if (webRtcSrc) {
                     return (
                       <WebRTCPlayer
@@ -1216,6 +1244,7 @@ export default function CreatePage(): JSX.Element {
                         playbackUrl={webRtcSrc}
                         autoPlay
                         startMuted
+                        onError={() => setUseIframePreview(true)}
                       />
                     );
                   }

@@ -8,6 +8,7 @@ type WebRTCPlayerProps = {
   autoPlay?: boolean;
   startMuted?: boolean;
   showControls?: boolean;
+  onError?: (message: string) => void;
 };
 
 function parseIceServers(): RTCIceServer[] {
@@ -48,6 +49,7 @@ export default function WebRTCPlayer({
   autoPlay = false,
   startMuted = false,
   showControls = true,
+  onError,
 }: WebRTCPlayerProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -152,11 +154,15 @@ export default function WebRTCPlayer({
         continue;
       }
 
-      setError(`Playback failed (${res.status})`);
+      const message = `Playback failed (${res.status})`;
+      setError(message);
+      onError?.(message);
       return;
     }
 
-    setError("Playback not ready");
+    const message = "Playback not ready";
+    setError(message);
+    onError?.(message);
   }
 
   function toggleMute() {

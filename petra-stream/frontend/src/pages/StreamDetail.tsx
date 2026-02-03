@@ -8,6 +8,7 @@ import { defaultEmotes } from "../components/chat/emotes";
 import ViewerList from "../components/ViewerList";
 import Player, { PlayerHandle } from "../components/Player";
 import WebRTCPlayer from "../components/WebRTCPlayer";
+import CloudflareIframePlayer from "../components/CloudflareIframePlayer";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
@@ -99,6 +100,8 @@ export default function StreamDetail(): JSX.Element {
   const [activityLoading, setActivityLoading] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stream" | "chat" | "activity" | "support">("stream");
   const [authUser, setAuthUser] = useState(readAuthUser());
+  const [useIframeMain, setUseIframeMain] = useState(false);
+  const [useIframePip, setUseIframePip] = useState(false);
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
@@ -383,6 +386,19 @@ export default function StreamDetail(): JSX.Element {
     || cameraWebrtcSrc
     || webrtcSrc;
   const pipWebrtcSrc = screenWebrtcSrc && cameraWebrtcSrc ? cameraWebrtcSrc : undefined;
+  const customerCode =
+    extractCustomerCode(mainWebrtcSrc)
+    || extractCustomerCode(screenSrc)
+    || extractCustomerCode(cameraSrc)
+    || extractCustomerCode(playbackSrc);
+  const mainInputId =
+    extractInputId(mainWebrtcSrc)
+    || extractInputId(screenSrc)
+    || extractInputId(cameraSrc)
+    || extractInputId(playbackSrc);
+  const pipInputId =
+    extractInputId(pipWebrtcSrc)
+    || extractInputId(cameraSrc);
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
 
   function normalizePlaybackUrl(raw?: string) {
@@ -399,6 +415,18 @@ export default function StreamDetail(): JSX.Element {
       return trimmed.replace(/^http:\/\//i, "https://");
     }
     return trimmed;
+  }
+
+  function extractCustomerCode(url?: string) {
+    if (!url) return "";
+    const match = url.match(/customer-([a-zA-Z0-9-]+)\.cloudflarestream\.com/);
+    return match?.[1] || "";
+  }
+
+  function extractInputId(url?: string) {
+    if (!url) return "";
+    const match = url.match(/cloudflarestream\.com\/([^/]+)\//);
+    return match?.[1] || "";
   }
 
   const focusChat = () => {
@@ -525,13 +553,21 @@ export default function StreamDetail(): JSX.Element {
             <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/60 shadow-[0_25px_60px_rgba(2,6,23,0.6)]">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-bg/60 to-accent/10" />
               <div className="relative">
-                {mainWebrtcSrc ? (
+                {mainWebrtcSrc && !useIframeMain ? (
                   <WebRTCPlayer
                     playbackUrl={mainWebrtcSrc}
                     title={stream.title ?? "Live"}
                     heightClass="aspect-video"
                     autoPlay
                     startMuted
+                    onError={() => setUseIframeMain(true)}
+                  />
+                ) : mainInputId && customerCode ? (
+                  <CloudflareIframePlayer
+                    customerCode={customerCode}
+                    inputId={mainInputId}
+                    title={stream.title ?? "Live"}
+                    heightClass="aspect-video"
                   />
                 ) : (
                   <Player
@@ -545,7 +581,7 @@ export default function StreamDetail(): JSX.Element {
                 {pipSrc ? (
                   <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20">
                     <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
-                      {pipWebrtcSrc ? (
+                      {pipWebrtcSrc && !useIframePip ? (
                         <WebRTCPlayer
                           playbackUrl={pipWebrtcSrc}
                           title={`${streamerLabel} camera`}
@@ -553,6 +589,15 @@ export default function StreamDetail(): JSX.Element {
                           autoPlay
                           startMuted
                           showControls={false}
+                          onError={() => setUseIframePip(true)}
+                        />
+                      ) : pipInputId && customerCode ? (
+                        <CloudflareIframePlayer
+                          customerCode={customerCode}
+                          inputId={pipInputId}
+                          title={`${streamerLabel} camera`}
+                          heightClass="aspect-video"
+                          showBadge={false}
                         />
                       ) : (
                         <Player
