@@ -71,7 +71,7 @@ export class CloudflareStreamService {
         ...(opts.headers || {})
       }
     });
-    const payload = await res.json().catch(() => null);
+    const payload: any = await res.json().catch(() => ({}));
     if (!payload?.success) {
       const message =
         payload?.errors?.[0]?.message ||
