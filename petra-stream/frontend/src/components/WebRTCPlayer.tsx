@@ -92,34 +92,36 @@ export default function WebRTCPlayer({
     setStatus("Connecting...");
     await stop();
 
-    const pc = new RTCPeerConnection({ iceServers: parseIceServers() });
-    pcRef.current = pc;
-
-    pc.addTransceiver("video", { direction: "recvonly" });
-    pc.addTransceiver("audio", { direction: "recvonly" });
-
-    pc.ontrack = (event) => {
-      const stream = event.streams?.[0];
-      if (stream && videoRef.current) {
-        videoRef.current.srcObject = stream;
-        if (autoPlay) {
-          void videoRef.current.play().catch(() => {});
-        }
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      setStatus(pc.connectionState);
-    };
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await waitForIceComplete(pc);
-
     const maxAttempts = 4;
     let attempt = 0;
+
     while (attempt < maxAttempts) {
       attempt += 1;
+
+      const pc = new RTCPeerConnection({ iceServers: parseIceServers() });
+      pcRef.current = pc;
+
+      pc.addTransceiver("video", { direction: "recvonly" });
+      pc.addTransceiver("audio", { direction: "recvonly" });
+
+      pc.ontrack = (event) => {
+        const stream = event.streams?.[0];
+        if (stream && videoRef.current) {
+          videoRef.current.srcObject = stream;
+          if (autoPlay) {
+            void videoRef.current.play().catch(() => {});
+          }
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        setStatus(pc.connectionState);
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await waitForIceComplete(pc);
+
       const res = await fetch(playbackUrl, {
         method: "POST",
         headers: {
@@ -128,6 +130,7 @@ export default function WebRTCPlayer({
         },
         body: pc.localDescription?.sdp || "",
       });
+
       if (res.ok) {
         const answer = await res.text();
         const location = res.headers.get("location");
@@ -137,8 +140,10 @@ export default function WebRTCPlayer({
         return;
       }
 
+      pc.close();
+      pcRef.current = null;
+
       if (res.status === 409 || res.status === 404) {
-        // Stream not ready or session conflict; retry after brief delay
         await new Promise((resolve) => setTimeout(resolve, 1500));
         continue;
       }
