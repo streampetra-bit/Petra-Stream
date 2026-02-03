@@ -143,14 +143,21 @@ export default function CreatePage(): JSX.Element {
       const nextScreenPublish = String(data?.screen?.publishUrl || "").trim();
       const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
 
-      if (nextScreenPlayback && (!screenPlaybackUrl || screenPlaybackUrl === screenHlsUrl)) {
+      if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
       }
-      if (nextCameraPlayback && (!cameraPlaybackUrl || cameraPlaybackUrl === cameraHlsUrl)) {
+      if (nextCameraPlayback) {
         setCameraPlaybackUrl(nextCameraPlayback);
       }
       if (nextScreenPublish) setScreenPublishOverride(nextScreenPublish);
       if (nextCameraPublish) setCameraPublishOverride(nextCameraPublish);
+
+      if (nextScreenPlayback || nextCameraPlayback) {
+        const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
+          || nextScreenPlayback
+          || nextCameraPlayback;
+        if (preferred) setPlaybackUrl(preferred);
+      }
     } catch {
       // ignore if Cloudflare inputs are not configured
     }
