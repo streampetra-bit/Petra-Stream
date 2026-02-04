@@ -160,6 +160,16 @@ export class StreamsController {
     return this.streams.listViewers(id);
   }
 
+  @Get(':id/inputs')
+  async publicInputs(@Param('id') id: string) {
+    try {
+      const data = await this.cloudflare.getInputsSnapshot(id);
+      return data ?? { customerCode: null, screen: {}, camera: {} };
+    } catch {
+      return { customerCode: null, screen: {}, camera: {} };
+    }
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.streams.findById(id);

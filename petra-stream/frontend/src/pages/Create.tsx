@@ -54,6 +54,8 @@ export default function CreatePage(): JSX.Element {
   const [cloudflareCustomerCode, setCloudflareCustomerCode] = useState("");
   const [screenInputId, setScreenInputId] = useState("");
   const [cameraInputId, setCameraInputId] = useState("");
+  const [screenVideoId, setScreenVideoId] = useState("");
+  const [cameraVideoId, setCameraVideoId] = useState("");
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -106,6 +108,8 @@ export default function CreatePage(): JSX.Element {
     setCloudflareCustomerCode("");
     setScreenInputId("");
     setCameraInputId("");
+    setScreenVideoId("");
+    setCameraVideoId("");
     setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
@@ -165,6 +169,8 @@ export default function CreatePage(): JSX.Element {
       const nextCustomerCode = String(data?.customerCode || "").trim();
       const nextScreenInputId = String(data?.screen?.inputId || "").trim();
       const nextCameraInputId = String(data?.camera?.inputId || "").trim();
+      const nextScreenVideoId = String(data?.screen?.videoId || "").trim();
+      const nextCameraVideoId = String(data?.camera?.videoId || "").trim();
 
       if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
@@ -179,6 +185,8 @@ export default function CreatePage(): JSX.Element {
       if (nextCustomerCode) setCloudflareCustomerCode(nextCustomerCode);
       if (nextScreenInputId) setScreenInputId(nextScreenInputId);
       if (nextCameraInputId) setCameraInputId(nextCameraInputId);
+      if (nextScreenVideoId) setScreenVideoId(nextScreenVideoId);
+      if (nextCameraVideoId) setCameraVideoId(nextCameraVideoId);
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -199,6 +207,7 @@ export default function CreatePage(): JSX.Element {
     };
   }, []);
 
+
   useEffect(() => {
     const handler = () => {
       setAuthUser(readAuthUser());
@@ -209,6 +218,22 @@ export default function CreatePage(): JSX.Element {
     window.addEventListener("auth-changed", handler);
     return () => window.removeEventListener("auth-changed", handler);
   }, []);
+
+  useEffect(() => {
+    if (!getAuthToken()) return;
+    if (!showPublisher && !isLive) return;
+    let active = true;
+    const poll = async () => {
+      if (!active) return;
+      await loadCloudflareInputs();
+    };
+    void poll();
+    const timer = window.setInterval(poll, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [showPublisher, isLive]);
 
   function requireAuth(nextMode: "login" | "register" = "login") {
     if (getAuthToken()) return true;
@@ -497,6 +522,7 @@ export default function CreatePage(): JSX.Element {
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     return `https://${trimmed.replace(/^\/+/, "")}`;
   }
+
 
   function resolvePlaybackUrl(baseUrl: string, key?: string | null) {
     const base = normalizeBaseUrl(baseUrl);
@@ -1257,8 +1283,8 @@ export default function CreatePage(): JSX.Element {
                     || extractCustomerCode(cameraWebrtcPlaybackUrl);
                   const previewInputId =
                     sourceMode === "screen"
-                      ? (screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraInputId || extractInputId(cameraPlaybackUrl))
-                      : (cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenInputId || extractInputId(screenPlaybackUrl));
+                      ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
+                      : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
                   const preferIframe = true;
                   if (preferIframe && previewInputId && previewCustomerCode) {
                     return (

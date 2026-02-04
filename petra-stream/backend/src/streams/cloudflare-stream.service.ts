@@ -11,6 +11,7 @@ type CloudflareLiveInputResult = {
 
 type CloudflareInputInfo = {
   inputId: string;
+  videoId?: string;
   publishUrl?: string;
   playbackUrl?: string;
   rtmpsUrl?: string;
@@ -91,6 +92,46 @@ export class CloudflareStreamService {
       { method: 'GET' }
     );
     return payload?.result ?? null;
+  }
+
+  async getLiveInputActiveVideoId(inputId: string): Promise<string> {
+    if (!inputId) return '';
+    const payload = await this.request(
+      `/accounts/${this.accountId}/stream/live_inputs/${inputId}/videos`,
+      { method: 'GET' }
+    );
+    const videos = payload?.result;
+    if (!Array.isArray(videos)) return '';
+    const live = videos.find((item: any) => String(item?.status || '').toLowerCase() === 'live-inprogress');
+    const first = live || videos[0];
+    return String(first?.uid || first?.videoUID || '');
+  }
+
+  async getInputsSnapshot(streamerId: string) {
+    const normalized = streamerId?.toString().trim();
+    if (!normalized) return null;
+    const existing = await prisma.stream.findUnique({ where: { streamId: normalized } }).catch(() => null);
+    if (!existing) return null;
+    const customerCode =
+      existing.cloudflareCustomerCode
+      || this.parseCustomerCode(existing.cloudflareScreenPublishUrl || existing.cloudflareCameraPublishUrl)
+      || null;
+    const screenInputId = existing.cloudflareScreenInputId || '';
+    const cameraInputId = existing.cloudflareCameraInputId || '';
+    const screenVideoId = screenInputId ? await this.getLiveInputActiveVideoId(screenInputId).catch(() => '') : '';
+    const cameraVideoId = cameraInputId ? await this.getLiveInputActiveVideoId(cameraInputId).catch(() => '') : '';
+
+    return {
+      customerCode,
+      screen: {
+        inputId: screenInputId || undefined,
+        videoId: screenVideoId || undefined
+      },
+      camera: {
+        inputId: cameraInputId || undefined,
+        videoId: cameraVideoId || undefined
+      }
+    };
   }
 
   async getLiveInputStatus(inputId: string): Promise<string> {
@@ -200,9 +241,12 @@ export class CloudflareStreamService {
 
     const screenDetails = screenInputId ? await this.getLiveInputDetails(screenInputId).catch(() => null) : null;
     const cameraDetails = cameraInputId ? await this.getLiveInputDetails(cameraInputId).catch(() => null) : null;
+    const screenVideoId = screenInputId ? await this.getLiveInputActiveVideoId(screenInputId).catch(() => '') : '';
+    const cameraVideoId = cameraInputId ? await this.getLiveInputActiveVideoId(cameraInputId).catch(() => '') : '';
 
     const screen: CloudflareInputInfo = {
       inputId: screenInputId,
+      videoId: screenVideoId || undefined,
       publishUrl: screenPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, screenInputId) : undefined,
       rtmpsUrl: screenRtmpsUrl || undefined,
@@ -212,6 +256,7 @@ export class CloudflareStreamService {
 
     const camera: CloudflareInputInfo = {
       inputId: cameraInputId,
+      videoId: cameraVideoId || undefined,
       publishUrl: cameraPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, cameraInputId) : undefined,
       rtmpsUrl: cameraRtmpsUrl || undefined,

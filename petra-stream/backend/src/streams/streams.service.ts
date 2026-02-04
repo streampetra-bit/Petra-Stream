@@ -215,7 +215,16 @@ export class StreamsService {
           cloudflareScreenInputId: payload.cloudflareScreenInputId ?? undefined,
           cloudflareCameraInputId: payload.cloudflareCameraInputId ?? undefined
         },
-        create: { streamId: streamer, streamer, title: payload.title ?? 'Untitled', status: 'online', streamKey }
+        create: {
+          streamId: streamer,
+          streamer,
+          title: payload.title ?? 'Untitled',
+          status: 'online',
+          streamKey,
+          cloudflareCustomerCode: payload.cloudflareCustomerCode ?? undefined,
+          cloudflareScreenInputId: payload.cloudflareScreenInputId ?? undefined,
+          cloudflareCameraInputId: payload.cloudflareCameraInputId ?? undefined
+        }
       });
     } catch (err) {
       this.logger.warn('startStream prisma upsert failed', err as any);

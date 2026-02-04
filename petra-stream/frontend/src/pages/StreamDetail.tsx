@@ -103,6 +103,11 @@ export default function StreamDetail(): JSX.Element {
   const [activityLoading, setActivityLoading] = useState(false);
   const [mobileTab, setMobileTab] = useState<"stream" | "chat" | "activity" | "support">("stream");
   const [authUser, setAuthUser] = useState(readAuthUser());
+  const [snapshotCustomerCode, setSnapshotCustomerCode] = useState("");
+  const [snapshotScreenInputId, setSnapshotScreenInputId] = useState("");
+  const [snapshotCameraInputId, setSnapshotCameraInputId] = useState("");
+  const [snapshotScreenVideoId, setSnapshotScreenVideoId] = useState("");
+  const [snapshotCameraVideoId, setSnapshotCameraVideoId] = useState("");
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
@@ -200,6 +205,38 @@ export default function StreamDetail(): JSX.Element {
 
     return () => {
       mounted = false;
+    };
+  }, [streamId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!streamId) return;
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const res = await api.get(`/api/streams/${encodeURIComponent(streamId)}/inputs`).catch(() => null);
+        if (!active) return;
+        const data = res?.data;
+        if (!data) return;
+        const nextCustomerCode = String(data?.customerCode || "").trim();
+        const nextScreenInputId = String(data?.screen?.inputId || "").trim();
+        const nextCameraInputId = String(data?.camera?.inputId || "").trim();
+        const nextScreenVideoId = String(data?.screen?.videoId || "").trim();
+        const nextCameraVideoId = String(data?.camera?.videoId || "").trim();
+        if (nextCustomerCode) setSnapshotCustomerCode(nextCustomerCode);
+        if (nextScreenInputId) setSnapshotScreenInputId(nextScreenInputId);
+        if (nextCameraInputId) setSnapshotCameraInputId(nextCameraInputId);
+        if (nextScreenVideoId) setSnapshotScreenVideoId(nextScreenVideoId);
+        if (nextCameraVideoId) setSnapshotCameraVideoId(nextCameraVideoId);
+      } catch {
+        // ignore snapshot errors
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
     };
   }, [streamId]);
 
@@ -389,22 +426,36 @@ export default function StreamDetail(): JSX.Element {
   const pipWebrtcSrc = screenWebrtcSrc && cameraWebrtcSrc ? cameraWebrtcSrc : undefined;
   const customerCode =
     stream?.cloudflareCustomerCode
+    || snapshotCustomerCode
     || extractCustomerCode(mainWebrtcSrc)
     || extractCustomerCode(screenSrc)
     || extractCustomerCode(cameraSrc)
     || extractCustomerCode(playbackSrc);
   const mainInputId =
-    (stream?.sourceMode === "screen" ? stream?.cloudflareScreenInputId : stream?.cloudflareCameraInputId)
+    (stream?.sourceMode === "screen"
+      ? (stream?.cloudflareScreenInputId || snapshotScreenInputId)
+      : (stream?.cloudflareCameraInputId || snapshotCameraInputId))
     || stream?.cloudflareScreenInputId
     || stream?.cloudflareCameraInputId
+    || snapshotScreenInputId
+    || snapshotCameraInputId
     || extractInputId(mainWebrtcSrc)
     || extractInputId(screenSrc)
     || extractInputId(cameraSrc)
     || extractInputId(playbackSrc);
   const pipInputId =
     stream?.cloudflareCameraInputId
+    || snapshotCameraInputId
     || extractInputId(pipWebrtcSrc)
     || extractInputId(cameraSrc);
+  const resolvedMainId =
+    (stream?.sourceMode === "screen" ? snapshotScreenVideoId : snapshotCameraVideoId)
+    || snapshotScreenVideoId
+    || snapshotCameraVideoId
+    || mainInputId;
+  const resolvedPipId =
+    snapshotCameraVideoId
+    || pipInputId;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
 
   function normalizePlaybackUrl(raw?: string) {
@@ -434,6 +485,7 @@ export default function StreamDetail(): JSX.Element {
     const match = url.match(/cloudflarestream\.com\/([^/]+)\//);
     return match?.[1] || "";
   }
+
 
   const focusChat = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -475,6 +527,7 @@ export default function StreamDetail(): JSX.Element {
       active = false;
     };
   }, [authUser, followTarget, isOwner, stream]);
+
 
   if (!stream) {
     return (
@@ -561,11 +614,11 @@ export default function StreamDetail(): JSX.Element {
               <div className="relative">
                 {(() => {
                   const preferIframe = true;
-                  if (preferIframe && customerCode && mainInputId) {
+                  if (preferIframe && customerCode && resolvedMainId) {
                     return (
                       <CloudflareIframePlayer
                         customerCode={customerCode}
-                        inputId={mainInputId}
+                        inputId={resolvedMainId}
                         title={stream.title ?? "Live"}
                         heightClass="aspect-video"
                         autoplay
@@ -601,11 +654,11 @@ export default function StreamDetail(): JSX.Element {
                     <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
                       {(() => {
                         const preferIframe = true;
-                        if (preferIframe && customerCode && pipInputId) {
+                        if (preferIframe && customerCode && resolvedPipId) {
                           return (
                             <CloudflareIframePlayer
                               customerCode={customerCode}
-                              inputId={pipInputId}
+                              inputId={resolvedPipId}
                               title={`${streamerLabel} camera`}
                               heightClass="aspect-video"
                               showBadge={false}
