@@ -54,6 +54,8 @@ export default function WebRTCPlayer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const sessionUrlRef = useRef<string | null>(null);
+  const hasVideoRef = useRef(false);
+  const videoTimeoutRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(startMuted || autoPlay);
@@ -76,6 +78,11 @@ export default function WebRTCPlayer({
   }, [playbackUrl]);
 
   async function stop() {
+    if (videoTimeoutRef.current) {
+      window.clearTimeout(videoTimeoutRef.current);
+      videoTimeoutRef.current = null;
+    }
+    hasVideoRef.current = false;
     try {
       if (sessionUrlRef.current) {
         await fetch(sessionUrlRef.current, { method: "DELETE" }).catch(() => {});
@@ -108,6 +115,13 @@ export default function WebRTCPlayer({
 
       pc.ontrack = (event) => {
         const stream = event.streams?.[0];
+        if (event.track?.kind === "video") {
+          hasVideoRef.current = true;
+          if (videoTimeoutRef.current) {
+            window.clearTimeout(videoTimeoutRef.current);
+            videoTimeoutRef.current = null;
+          }
+        }
         if (stream && videoRef.current) {
           videoRef.current.srcObject = stream;
           if (autoPlay) {
@@ -139,6 +153,15 @@ export default function WebRTCPlayer({
         if (location) sessionUrlRef.current = location;
         await pc.setRemoteDescription({ type: "answer", sdp: answer });
         setStatus("Live");
+        if (!videoTimeoutRef.current) {
+          videoTimeoutRef.current = window.setTimeout(() => {
+            if (!hasVideoRef.current) {
+              const message = "No video track";
+              setError(message);
+              onError?.(message);
+            }
+          }, 3000);
+        }
         return;
       }
 
