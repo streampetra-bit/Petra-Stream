@@ -175,6 +175,9 @@ export default function CreatePage(): JSX.Element {
       if (nextCustomerCode) setCloudflareCustomerCode(nextCustomerCode);
       if (nextScreenInputId) setScreenInputId(nextScreenInputId);
       if (nextCameraInputId) setCameraInputId(nextCameraInputId);
+      if (nextCustomerCode && (nextScreenInputId || nextCameraInputId)) {
+        setUseIframePreview(true);
+      }
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -1226,7 +1229,8 @@ export default function CreatePage(): JSX.Element {
                   const iframeInputId = sourceMode === "screen"
                     ? (screenInputId || cameraInputId)
                     : (cameraInputId || screenInputId);
-                  if (useIframePreview && iframeInputId && cloudflareCustomerCode) {
+                  const preferIframe = true;
+                  if ((preferIframe || useIframePreview) && iframeInputId && cloudflareCustomerCode) {
                     return (
                       <CloudflareIframePlayer
                         customerCode={cloudflareCustomerCode}
