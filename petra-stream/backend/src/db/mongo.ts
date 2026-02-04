@@ -14,6 +14,9 @@ type StreamDoc = {
   webrtcPlaybackUrl?: string;
   screenWebrtcPlaybackUrl?: string;
   cameraWebrtcPlaybackUrl?: string;
+  cloudflareCustomerCode?: string;
+  cloudflareScreenInputId?: string;
+  cloudflareCameraInputId?: string;
   sourceMode?: string;
   thumbnail?: string;
   viewerCount?: number;
@@ -73,6 +76,9 @@ const StreamModel = model<StreamDoc>(
       webrtcPlaybackUrl: String,
       screenWebrtcPlaybackUrl: String,
       cameraWebrtcPlaybackUrl: String,
+      cloudflareCustomerCode: String,
+      cloudflareScreenInputId: String,
+      cloudflareCameraInputId: String,
       sourceMode: String,
       thumbnail: String,
       viewerCount: Number

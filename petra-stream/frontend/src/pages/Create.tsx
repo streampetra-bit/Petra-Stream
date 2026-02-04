@@ -7,6 +7,7 @@ import StreamKeyPanel from "../components/StreamKeyPanel";
 import { useToast } from "../contexts/ToastContext";
 import Player from "../components/Player";
 import WebRTCPlayer from "../components/WebRTCPlayer";
+import CloudflareIframePlayer from "../components/CloudflareIframePlayer";
 import LocalRecorder from "../components/LocalRecorder";
 import ChatPanel from "../components/ChatPanel";
 import { defaultEmotes } from "../components/chat/emotes";
@@ -50,6 +51,9 @@ export default function CreatePage(): JSX.Element {
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
   const [screenWebrtcPlaybackUrl, setScreenWebrtcPlaybackUrl] = useState("");
+  const [cloudflareCustomerCode, setCloudflareCustomerCode] = useState("");
+  const [screenInputId, setScreenInputId] = useState("");
+  const [cameraInputId, setCameraInputId] = useState("");
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -99,6 +103,9 @@ export default function CreatePage(): JSX.Element {
     setCameraWebrtcPlaybackUrl("");
     setScreenPublishOverride("");
     setCameraPublishOverride("");
+    setCloudflareCustomerCode("");
+    setScreenInputId("");
+    setCameraInputId("");
     setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
@@ -123,9 +130,15 @@ export default function CreatePage(): JSX.Element {
         const nextPlayback = sanitizeHlsUrl(String(res.data.playbackUrl ?? "").trim());
         const nextScreen = sanitizeHlsUrl(String(res.data.screenPlaybackUrl ?? "").trim());
         const nextCamera = sanitizeHlsUrl(String(res.data.cameraPlaybackUrl ?? "").trim());
+        const nextCustomerCode = String(res.data.cloudflareCustomerCode ?? "").trim();
+        const nextScreenInputId = String(res.data.cloudflareScreenInputId ?? "").trim();
+        const nextCameraInputId = String(res.data.cloudflareCameraInputId ?? "").trim();
         setPlaybackUrl(nextPlayback || playbackUrl);
         setScreenPlaybackUrl(nextScreen || screenPlaybackUrl || sanitizeHlsUrl(screenHlsUrl));
         setCameraPlaybackUrl(nextCamera || cameraPlaybackUrl || sanitizeHlsUrl(cameraHlsUrl));
+        if (nextCustomerCode) setCloudflareCustomerCode(nextCustomerCode);
+        if (nextScreenInputId) setScreenInputId(nextScreenInputId);
+        if (nextCameraInputId) setCameraInputId(nextCameraInputId);
         setSourceMode(res.data.sourceMode === "screen" ? "screen" : "camera");
         setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
         return;
@@ -149,6 +162,9 @@ export default function CreatePage(): JSX.Element {
       const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
       const nextScreenWebrtcPlayback = String(data?.screen?.webrtcPlaybackUrl || "").trim();
       const nextCameraWebrtcPlayback = String(data?.camera?.webrtcPlaybackUrl || "").trim();
+      const nextCustomerCode = String(data?.customerCode || "").trim();
+      const nextScreenInputId = String(data?.screen?.inputId || "").trim();
+      const nextCameraInputId = String(data?.camera?.inputId || "").trim();
 
       if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
@@ -160,6 +176,9 @@ export default function CreatePage(): JSX.Element {
       if (nextCameraPublish) setCameraPublishOverride(nextCameraPublish);
       if (nextScreenWebrtcPlayback) setScreenWebrtcPlaybackUrl(nextScreenWebrtcPlayback);
       if (nextCameraWebrtcPlayback) setCameraWebrtcPlaybackUrl(nextCameraWebrtcPlayback);
+      if (nextCustomerCode) setCloudflareCustomerCode(nextCustomerCode);
+      if (nextScreenInputId) setScreenInputId(nextScreenInputId);
+      if (nextCameraInputId) setCameraInputId(nextCameraInputId);
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -462,6 +481,16 @@ export default function CreatePage(): JSX.Element {
     if (!trimmed) return "";
     return trimmed.replace(/\?%22%22$/i, "").replace(/\?""$/i, "");
   }
+  function extractCustomerCode(url?: string) {
+    if (!url) return "";
+    const match = url.match(/customer-([a-zA-Z0-9-]+)\.cloudflarestream\.com/);
+    return match?.[1] || "";
+  }
+  function extractInputId(url?: string) {
+    if (!url) return "";
+    const match = url.match(/cloudflarestream\.com\/([^/]+)\//);
+    return match?.[1] || "";
+  }
   function normalizeBaseUrl(input: string) {
     const trimmed = input.trim();
     if (!trimmed) return "";
@@ -530,6 +559,9 @@ export default function CreatePage(): JSX.Element {
         sanitizeHlsUrl((next?.cameraPlaybackUrl ?? cameraPlaybackUrl).trim())
         || fallbackCamera
         || (basePlayback && (next?.sourceMode ?? sourceMode) === "camera" ? basePlayback : undefined),
+      cloudflareCustomerCode: cloudflareCustomerCode || undefined,
+      cloudflareScreenInputId: screenInputId || undefined,
+      cloudflareCameraInputId: cameraInputId || undefined,
     };
     try {
       await api.post(`/api/streams/${encodeURIComponent(identity)}/update`, payload);
@@ -578,6 +610,9 @@ export default function CreatePage(): JSX.Element {
           || screenWebrtcPlaybackUrl
           || cameraWebrtcPlaybackUrl
           || undefined,
+        cloudflareCustomerCode: cloudflareCustomerCode || undefined,
+        cloudflareScreenInputId: screenInputId || undefined,
+        cloudflareCameraInputId: cameraInputId || undefined,
       };
       const res = await api.post("/api/streams/start", payload);
       if (res?.data?.streamer || res?.data?.id) {
@@ -1213,6 +1248,32 @@ export default function CreatePage(): JSX.Element {
                     sourceMode === "screen"
                       ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
                       : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
+                  const previewCustomerCode =
+                    cloudflareCustomerCode
+                    || extractCustomerCode(screenPlaybackUrl)
+                    || extractCustomerCode(cameraPlaybackUrl)
+                    || extractCustomerCode(playbackUrl)
+                    || extractCustomerCode(screenWebrtcPlaybackUrl)
+                    || extractCustomerCode(cameraWebrtcPlaybackUrl);
+                  const previewInputId =
+                    sourceMode === "screen"
+                      ? (screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraInputId || extractInputId(cameraPlaybackUrl))
+                      : (cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenInputId || extractInputId(screenPlaybackUrl));
+                  const preferIframe = true;
+                  if (preferIframe && previewInputId && previewCustomerCode) {
+                    return (
+                      <CloudflareIframePlayer
+                        customerCode={previewCustomerCode}
+                        inputId={previewInputId}
+                        title={title || "Broadcast preview"}
+                        heightClass="aspect-video"
+                        autoplay
+                        muted
+                        controls
+                        preload="auto"
+                      />
+                    );
+                  }
                   if (!previewSrc && webRtcSrc) {
                     return (
                       <WebRTCPlayer

@@ -196,7 +196,10 @@ export class StreamsController {
       description: body.description,
       sourceMode: body.sourceMode,
       screenPlaybackUrl: body.screenPlaybackUrl,
-      cameraPlaybackUrl: body.cameraPlaybackUrl
+      cameraPlaybackUrl: body.cameraPlaybackUrl,
+      cloudflareCustomerCode: body.cloudflareCustomerCode,
+      cloudflareScreenInputId: body.cloudflareScreenInputId,
+      cloudflareCameraInputId: body.cloudflareCameraInputId
     });
   }
 

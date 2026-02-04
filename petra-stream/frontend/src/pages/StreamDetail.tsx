@@ -8,6 +8,7 @@ import { defaultEmotes } from "../components/chat/emotes";
 import ViewerList from "../components/ViewerList";
 import Player, { PlayerHandle } from "../components/Player";
 import WebRTCPlayer from "../components/WebRTCPlayer";
+import CloudflareIframePlayer from "../components/CloudflareIframePlayer";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
@@ -26,6 +27,9 @@ type Stream = {
   webrtcPlaybackUrl?: string;
   screenWebrtcPlaybackUrl?: string;
   cameraWebrtcPlaybackUrl?: string;
+  cloudflareCustomerCode?: string;
+  cloudflareScreenInputId?: string;
+  cloudflareCameraInputId?: string;
   screenUrl?: string;
   cameraUrl?: string;
   thumbnail?: string;
@@ -383,6 +387,24 @@ export default function StreamDetail(): JSX.Element {
     || cameraWebrtcSrc
     || webrtcSrc;
   const pipWebrtcSrc = screenWebrtcSrc && cameraWebrtcSrc ? cameraWebrtcSrc : undefined;
+  const customerCode =
+    stream?.cloudflareCustomerCode
+    || extractCustomerCode(mainWebrtcSrc)
+    || extractCustomerCode(screenSrc)
+    || extractCustomerCode(cameraSrc)
+    || extractCustomerCode(playbackSrc);
+  const mainInputId =
+    (stream?.sourceMode === "screen" ? stream?.cloudflareScreenInputId : stream?.cloudflareCameraInputId)
+    || stream?.cloudflareScreenInputId
+    || stream?.cloudflareCameraInputId
+    || extractInputId(mainWebrtcSrc)
+    || extractInputId(screenSrc)
+    || extractInputId(cameraSrc)
+    || extractInputId(playbackSrc);
+  const pipInputId =
+    stream?.cloudflareCameraInputId
+    || extractInputId(pipWebrtcSrc)
+    || extractInputId(cameraSrc);
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
 
   function normalizePlaybackUrl(raw?: string) {
@@ -399,6 +421,18 @@ export default function StreamDetail(): JSX.Element {
       return trimmed.replace(/^http:\/\//i, "https://");
     }
     return trimmed;
+  }
+
+  function extractCustomerCode(url?: string) {
+    if (!url) return "";
+    const match = url.match(/customer-([a-zA-Z0-9-]+)\.cloudflarestream\.com/);
+    return match?.[1] || "";
+  }
+
+  function extractInputId(url?: string) {
+    if (!url) return "";
+    const match = url.match(/cloudflarestream\.com\/([^/]+)\//);
+    return match?.[1] || "";
   }
 
   const focusChat = () => {
@@ -526,6 +560,21 @@ export default function StreamDetail(): JSX.Element {
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-bg/60 to-accent/10" />
               <div className="relative">
                 {(() => {
+                  const preferIframe = true;
+                  if (preferIframe && customerCode && mainInputId) {
+                    return (
+                      <CloudflareIframePlayer
+                        customerCode={customerCode}
+                        inputId={mainInputId}
+                        title={stream.title ?? "Live"}
+                        heightClass="aspect-video"
+                        autoplay
+                        muted
+                        controls
+                        preload="auto"
+                      />
+                    );
+                  }
                   if (!mainSrc && mainWebrtcSrc) {
                     return (
                       <WebRTCPlayer
@@ -551,6 +600,22 @@ export default function StreamDetail(): JSX.Element {
                   <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20">
                     <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
                       {(() => {
+                        const preferIframe = true;
+                        if (preferIframe && customerCode && pipInputId) {
+                          return (
+                            <CloudflareIframePlayer
+                              customerCode={customerCode}
+                              inputId={pipInputId}
+                              title={`${streamerLabel} camera`}
+                              heightClass="aspect-video"
+                              showBadge={false}
+                              autoplay
+                              muted
+                              controls={false}
+                              preload="auto"
+                            />
+                          );
+                        }
                         if (!pipSrc && pipWebrtcSrc) {
                           return (
                             <WebRTCPlayer

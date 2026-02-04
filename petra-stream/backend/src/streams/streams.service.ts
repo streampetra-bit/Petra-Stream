@@ -23,6 +23,9 @@ type StreamMeta = {
   webrtcPlaybackUrl?: string;
   screenWebrtcPlaybackUrl?: string;
   cameraWebrtcPlaybackUrl?: string;
+  cloudflareCustomerCode?: string;
+  cloudflareScreenInputId?: string;
+  cloudflareCameraInputId?: string;
   sourceMode?: 'camera' | 'screen';
   thumbnail?: string;
   tags?: string[];
@@ -169,7 +172,7 @@ export class StreamsService {
     return key;
   }
 
-  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; screenWebrtcPlaybackUrl?: string; cameraWebrtcPlaybackUrl?: string; webrtcPlaybackUrl?: string; sourceMode?: 'camera' | 'screen' }) {
+  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; screenWebrtcPlaybackUrl?: string; cameraWebrtcPlaybackUrl?: string; webrtcPlaybackUrl?: string; sourceMode?: 'camera' | 'screen'; cloudflareCustomerCode?: string; cloudflareScreenInputId?: string; cloudflareCameraInputId?: string }) {
     const streamer = this.defaultStreamer(payload.streamer);
     const streamKey = payload.streamKey ?? payload.key ?? this.streams.get(streamer)?.streamKey;
     const hlsBase = process.env.MEDIA_HLS_BASE_URL || '';
@@ -189,6 +192,9 @@ export class StreamsService {
       webrtcPlaybackUrl: payload.webrtcPlaybackUrl ?? this.streams.get(streamer)?.webrtcPlaybackUrl,
       screenWebrtcPlaybackUrl: payload.screenWebrtcPlaybackUrl ?? this.streams.get(streamer)?.screenWebrtcPlaybackUrl,
       cameraWebrtcPlaybackUrl: payload.cameraWebrtcPlaybackUrl ?? this.streams.get(streamer)?.cameraWebrtcPlaybackUrl,
+      cloudflareCustomerCode: payload.cloudflareCustomerCode ?? this.streams.get(streamer)?.cloudflareCustomerCode,
+      cloudflareScreenInputId: payload.cloudflareScreenInputId ?? this.streams.get(streamer)?.cloudflareScreenInputId,
+      cloudflareCameraInputId: payload.cloudflareCameraInputId ?? this.streams.get(streamer)?.cloudflareCameraInputId,
       sourceMode,
       tags: payload.tags,
       streamKey,
@@ -200,7 +206,15 @@ export class StreamsService {
     try {
       await prisma.stream.upsert({
         where: { streamId: streamer },
-        update: { title: payload.title, streamer, status: 'online', streamKey },
+        update: {
+          title: payload.title,
+          streamer,
+          status: 'online',
+          streamKey,
+          cloudflareCustomerCode: payload.cloudflareCustomerCode ?? undefined,
+          cloudflareScreenInputId: payload.cloudflareScreenInputId ?? undefined,
+          cloudflareCameraInputId: payload.cloudflareCameraInputId ?? undefined
+        },
         create: { streamId: streamer, streamer, title: payload.title ?? 'Untitled', status: 'online', streamKey }
       });
     } catch (err) {
@@ -228,7 +242,8 @@ export class StreamsService {
 
   async updateMeta(streamer: string, data: Partial<StreamMeta>) {
     const id = this.defaultStreamer(streamer);
-    const next = { ...(this.streams.get(id) ?? { id, streamer: id, status: 'offline' as const }), ...data };
+    const clean = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+    const next = { ...(this.streams.get(id) ?? { id, streamer: id, status: 'offline' as const }), ...clean };
     this.streams.set(id, next);
     try {
       await prisma.stream.upsert({
@@ -319,6 +334,9 @@ export class StreamsService {
       webrtcPlaybackUrl: data.webrtcPlaybackUrl,
       screenWebrtcPlaybackUrl: data.screenWebrtcPlaybackUrl,
       cameraWebrtcPlaybackUrl: data.cameraWebrtcPlaybackUrl,
+      cloudflareCustomerCode: data.cloudflareCustomerCode,
+      cloudflareScreenInputId: data.cloudflareScreenInputId,
+      cloudflareCameraInputId: data.cloudflareCameraInputId,
       sourceMode: data.sourceMode,
       thumbnail: data.thumbnail,
       tags: data.tags,
@@ -341,6 +359,9 @@ export class StreamsService {
       webrtcPlaybackUrl: meta.webrtcPlaybackUrl,
       screenWebrtcPlaybackUrl: meta.screenWebrtcPlaybackUrl,
       cameraWebrtcPlaybackUrl: meta.cameraWebrtcPlaybackUrl,
+      cloudflareCustomerCode: meta.cloudflareCustomerCode,
+      cloudflareScreenInputId: meta.cloudflareScreenInputId,
+      cloudflareCameraInputId: meta.cloudflareCameraInputId,
       sourceMode: meta.sourceMode,
       thumbnail: meta.thumbnail,
       tags: meta.tags,
