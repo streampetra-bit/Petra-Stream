@@ -114,7 +114,7 @@ export class CloudflareStreamService {
     if (!existing) return null;
     const customerCode =
       existing.cloudflareCustomerCode
-      || this.parseCustomerCode(existing.cloudflareScreenPublishUrl || existing.cloudflareCameraPublishUrl)
+      || this.parseCustomerCode(existing.cloudflareScreenPublishUrl || existing.cloudflareCameraPublishUrl || undefined)
       || null;
     const screenInputId = existing.cloudflareScreenInputId || '';
     const cameraInputId = existing.cloudflareCameraInputId || '';
