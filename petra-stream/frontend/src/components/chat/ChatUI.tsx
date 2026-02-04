@@ -31,6 +31,7 @@ export interface ChatUIProps {
   isModerator?: boolean;
   showModerationPanel?: boolean;
   collapsedOnDesktop?: boolean;
+  autoScrollMode?: "smart" | "always";
   onSendMessage?: (payload: ChatSendPayload) => Promise<void> | void;
   onModerateMessage?: (action: ChatModerationAction, id: string) => void;
   onClearChat?: () => void;
@@ -59,6 +60,7 @@ export default function ChatUI({
   isModerator = false,
   showModerationPanel = false,
   collapsedOnDesktop = false,
+  autoScrollMode = "smart",
   onSendMessage,
   onModerateMessage,
   onClearChat,
@@ -93,6 +95,7 @@ export default function ChatUI({
       : variant === "monitor"
         ? "Moderation chat"
         : "Live chat");
+  const autoScrollEnabled = autoScrollMode === "always";
   const openHeightClass = heightClass ?? "min-h-[300px] h-[420px] max-h-[60vh]";
 
   const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
@@ -129,6 +132,13 @@ export default function ChatUI({
     if (!initialScrollRef.current) {
       scrollToBottom("auto");
       initialScrollRef.current = true;
+      setHasUnread(false);
+      setUnreadCount(0);
+      return;
+    }
+
+    if (autoScrollEnabled) {
+      scrollToBottom("smooth");
       setHasUnread(false);
       setUnreadCount(0);
       return;
@@ -211,11 +221,22 @@ export default function ChatUI({
       aria-label="Chat panel"
     >
       <header className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
-          <span className="text-sm font-semibold text-text">{header}</span>
+        <div className="flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" />
+          <div>
+            <div className="text-sm font-semibold text-text">{header}</div>
+            {headerSubtitle ? <div className="text-[10px] text-white/40">{headerSubtitle}</div> : null}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/60">
+          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
+            {statusLabel}
+          </span>
+          {autoScrollEnabled ? (
+            <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
+              Auto-scroll
+            </span>
+          ) : null}
           <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
             {participants.length}
           </span>

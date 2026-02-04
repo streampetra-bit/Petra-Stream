@@ -1188,41 +1188,64 @@ export default function CreatePage(): JSX.Element {
         <div className="absolute bottom-0 -right-64 h-[900px] w-[900px] rounded-full bg-accent/5 blur-[200px]" />
       </div>
 
-      <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-8 sm:py-10 lg:py-12 space-y-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          <div className="lg:col-span-7 space-y-10">
-            <section className="space-y-5">
-              <div className="flex items-center gap-3">
-                <span className="h-px w-8 bg-primary/50" />
-                <p className="text-primary font-bold tracking-[0.3em] uppercase text-[10px]">
-                  Production Interface
-                </p>
-              </div>
-              <h2 className="text-4xl sm:text-5xl xl:text-6xl font-black tracking-tight text-text leading-[1.1]">
-                Go live in
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
-                  one click.
-                </span>
-              </h2>
-              <p className="text-sm sm:text-base text-subtle max-w-xl leading-relaxed font-medium">
-                Unified creator environment for high fidelity broadcasting. Professional encoding meets decentralized
-                distribution.
-              </p>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className={`px-3 py-1.5 rounded-full border ${statusTone}`}>Status: {statusLabel}</span>
-                <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
-                  {readinessLabel}
-                </span>
-                {supportsBrowserStudio ? (
-                  <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
-                    Browser studio ready
-                  </span>
-                ) : (
-                  <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
-                    Browser studio disabled
-                  </span>
-                )}
+      <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-8 sm:py-10 lg:py-12 space-y-10">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 items-start">
+          <div className="xl:col-span-8 space-y-10">
+            <section className="glass-card rounded-[2.5rem] p-6 sm:p-8 space-y-6">
+              <div className="flex flex-col xl:flex-row items-start justify-between gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="h-px w-10 bg-primary/60" />
+                    <p className="text-primary font-bold tracking-[0.35em] uppercase text-[10px]">
+                      Creator Control Room
+                    </p>
+                  </div>
+                  <h2 className="text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight text-text leading-[1.1]">
+                    Build your stream
+                    <br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
+                      like a broadcast studio.
+                    </span>
+                  </h2>
+                  <p className="text-sm sm:text-base text-subtle max-w-2xl leading-relaxed font-medium">
+                    Preview, studio controls, and chat — all aligned for creators who run live sessions at speed.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className={`px-3 py-1.5 rounded-full border ${statusTone}`}>Status: {statusLabel}</span>
+                    <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
+                      {readinessLabel}
+                    </span>
+                    {supportsBrowserStudio ? (
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
+                        Browser studio ready
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
+                        Browser studio disabled
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex w-full flex-col sm:flex-row gap-3 xl:w-auto">
+                  <button
+                    onClick={() => {
+                      void primaryCtaAction();
+                    }}
+                    disabled={loading}
+                    className="h-14 min-w-[220px] bg-primary text-bg font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-glow-primary flex items-center justify-center gap-3"
+                  >
+                    {loading ? "Working..." : primaryCtaLabel}
+                  </button>
+                  {showStopButton && (
+                    <button
+                      onClick={stopStream}
+                      disabled={loading}
+                      className="h-14 min-w-[200px] rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
+                    >
+                      Stop broadcast
+                    </button>
+                  )}
+                </div>
               </div>
               {!supportsBrowserStudio ? (
                 <div className="text-xs text-amber-200/80">
@@ -1232,102 +1255,15 @@ export default function CreatePage(): JSX.Element {
               ) : null}
             </section>
 
-            <section className="glass-card rounded-3xl p-5 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-text">Broadcast controls</h3>
-                  <p className="text-xs subtle mt-1">Start or end your live session without leaving the page.</p>
-                </div>
-                <span className={`px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-[0.2em] ${statusTone}`}>
-                  {statusLabel}
-                </span>
-              </div>
-              <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => {
-                    void primaryCtaAction();
-                  }}
-                  disabled={loading}
-                  className="flex-1 h-14 bg-primary text-bg font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-glow-primary flex items-center justify-center gap-3"
-                >
-                  {loading ? "Working..." : primaryCtaLabel}
-                </button>
-                {showStopButton && (
-                  <button
-                    onClick={stopStream}
-                    disabled={loading}
-                    className="flex-1 h-14 rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
-                  >
-                    Stop broadcasting
-                  </button>
-                )}
-              </div>
-            </section>
-
             <section className="relative">
-              <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-primary/30 to-accent/30 blur-2xl opacity-40" />
-              <div className="relative glass-card rounded-[2.5rem] p-3">
-              <div className="relative rounded-[2rem] overflow-hidden bg-bg/70">
-                <div className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-bg/20 pointer-events-none" />
-                {(() => {
-                  const webRtcSrc =
-                    sourceMode === "screen"
-                      ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
-                      : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
-                  const previewCustomerCode =
-                    cloudflareCustomerCode
-                    || extractCustomerCode(screenPlaybackUrl)
-                    || extractCustomerCode(cameraPlaybackUrl)
-                    || extractCustomerCode(playbackUrl)
-                    || extractCustomerCode(screenWebrtcPlaybackUrl)
-                    || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                  const previewInputId =
-                    sourceMode === "screen"
-                      ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
-                      : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
-                  const preferIframe = true;
-                  if (preferIframe && previewInputId && previewCustomerCode) {
-                    return (
-                      <CloudflareIframePlayer
-                        customerCode={previewCustomerCode}
-                        inputId={previewInputId}
-                        title={title || "Broadcast preview"}
-                        heightClass="aspect-video"
-                        autoplay
-                        muted
-                        controls
-                        preload="auto"
-                      />
-                    );
-                  }
-                  if (!previewSrc && webRtcSrc) {
-                    return (
-                      <WebRTCPlayer
-                        heightClass="aspect-video"
-                        title={title || "Broadcast preview"}
-                        playbackUrl={webRtcSrc}
-                        autoPlay
-                        startMuted
-                      />
-                    );
-                  }
-                  return (
-                    <Player
-                      heightClass="aspect-video"
-                      title={title || "Broadcast preview"}
-                      src={previewSrc}
-                      autoPlay
-                      startMuted
-                    />
-                  );
-                })()}
-                <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-bg/60 px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-text">
-                  {broadcastLabel}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-2">
+                <div className="flex items-center gap-3">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]" />
+                  <span className="text-sm font-semibold text-text">Live preview</span>
+                  <span className={`px-2 py-1 rounded-full border text-[9px] font-bold uppercase tracking-[0.2em] ${statusTone}`}>
+                    {statusLabel}
+                  </span>
                 </div>
-              </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between text-xs text-white/50 px-2">
-                <span>Live preview</span>
                 <button
                   type="button"
                   onClick={testPlayback}
@@ -1337,26 +1273,128 @@ export default function CreatePage(): JSX.Element {
                   {checkingPlayback ? "Checking" : "Refresh status"}
                 </button>
               </div>
+              <div className="absolute -inset-1.5 rounded-[2.5rem] bg-gradient-to-r from-primary/30 to-accent/30 blur-2xl opacity-40" />
+              <div className="relative mt-3 glass-card rounded-[2.5rem] p-3">
+                <div className="relative rounded-[2rem] overflow-hidden bg-bg/70">
+                  <div className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-bg/20 pointer-events-none" />
+                  {(() => {
+                    const webRtcSrc =
+                      sourceMode === "screen"
+                        ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
+                        : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
+                    const previewCustomerCode =
+                      cloudflareCustomerCode
+                      || extractCustomerCode(screenPlaybackUrl)
+                      || extractCustomerCode(cameraPlaybackUrl)
+                      || extractCustomerCode(playbackUrl)
+                      || extractCustomerCode(screenWebrtcPlaybackUrl)
+                      || extractCustomerCode(cameraWebrtcPlaybackUrl);
+                    const previewInputId =
+                      sourceMode === "screen"
+                        ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
+                        : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
+                    const preferIframe = true;
+                    if (preferIframe && previewInputId && previewCustomerCode) {
+                      return (
+                        <CloudflareIframePlayer
+                          customerCode={previewCustomerCode}
+                          inputId={previewInputId}
+                          title={title || "Broadcast preview"}
+                          heightClass="aspect-video"
+                          autoplay
+                          muted
+                          controls
+                          preload="auto"
+                        />
+                      );
+                    }
+                    if (!previewSrc && webRtcSrc) {
+                      return (
+                        <WebRTCPlayer
+                          heightClass="aspect-video"
+                          title={title || "Broadcast preview"}
+                          playbackUrl={webRtcSrc}
+                          autoPlay
+                          startMuted
+                        />
+                      );
+                    }
+                    return (
+                      <Player
+                        heightClass="aspect-video"
+                        title={title || "Broadcast preview"}
+                        src={previewSrc}
+                        autoPlay
+                        startMuted
+                      />
+                    );
+                  })()}
+                  <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-bg/60 px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-text">
+                    {broadcastLabel}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3 px-2 text-xs text-white/60">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-2 py-1">
+                  <span className="text-[10px] uppercase tracking-[0.2em]">Active source</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSourceMode("camera");
+                      void updateStreamLayout({ sourceMode: "camera" });
+                    }}
+                    className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] ${sourceMode === "camera" ? "bg-primary text-bg" : "border border-white/10 text-white/70"}`}
+                  >
+                    Camera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSourceMode("screen");
+                      void updateStreamLayout({ sourceMode: "screen" });
+                    }}
+                    className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-[0.2em] ${sourceMode === "screen" ? "bg-primary text-bg" : "border border-white/10 text-white/70"}`}
+                  >
+                    Screen
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyText("Playback URL", playbackUrl)}
+                  className="px-3 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest"
+                  disabled={!playbackUrl}
+                >
+                  Copy HLS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText("Studio URL", studioUrl)}
+                  className="px-3 py-1 rounded-full border border-white/10 text-[10px] uppercase tracking-widest"
+                  disabled={!studioUrl}
+                >
+                  Copy studio URL
+                </button>
+              </div>
             </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-2">
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-white/40 text-[9px] uppercase font-bold tracking-[0.2em]">Bitrate output</p>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-3xl font-bold font-mono tracking-tight">9,420</span>
                   <span className="text-primary/60 text-xs font-bold uppercase">Kbps</span>
                 </div>
               </div>
-              <div className="space-y-1 border-l border-white/10 pl-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-white/40 text-[9px] uppercase font-bold tracking-[0.2em]">Stream latency</p>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-3xl font-bold font-mono tracking-tight">0.8</span>
                   <span className="text-primary/60 text-xs font-bold uppercase">Sec</span>
                 </div>
               </div>
-              <div className="space-y-1 border-l border-white/10 pl-4">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-white/40 text-[9px] uppercase font-bold tracking-[0.2em]">Security protocol</p>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-lg font-bold font-mono tracking-widest text-emerald-400 uppercase">
                     Encrypted
                   </span>
@@ -1442,8 +1480,8 @@ export default function CreatePage(): JSX.Element {
               )}
             </section>
           </div>
-          <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-28 flex flex-col gap-8">
+          <div className="xl:col-span-4">
+            <div className="xl:sticky xl:top-28 flex flex-col gap-8">
               <div className="glass-card rounded-3xl p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -1476,13 +1514,16 @@ export default function CreatePage(): JSX.Element {
                   <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-bold text-white/50 uppercase tracking-widest">
                     {readinessLabel}
                   </span>
-                  {streamRoomId ? (
-                    <span className="text-[10px] text-white/40">
-                      Room: <span className="font-mono text-text">{streamRoomId}</span>
-                    </span>
-                  ) : null}
-                </div>
+                {streamRoomId ? (
+                  <span className="text-[10px] text-white/40">
+                    Room: <span className="font-mono text-text">{streamRoomId}</span>
+                  </span>
+                ) : null}
+                <span className="text-[10px] text-white/40">
+                  Source: <span className="font-mono text-text">{sourceMode}</span>
+                </span>
               </div>
+            </div>
 
               <div className="flex-1 min-h-0 mt-1">
                 <ChatPanel
@@ -1494,8 +1535,11 @@ export default function CreatePage(): JSX.Element {
                   currentBadges={["owner"]}
                   showTimestamps
                   pinnedNotice="Creator mode: keep chat welcoming while you stream."
+                  headerTitle="Studio chat"
+                  headerSubtitle="Auto-scroll enabled"
+                  autoScrollMode="always"
                   emotes={defaultEmotes}
-                  heightClass="min-h-[520px] h-[clamp(520px,65vh,760px)]"
+                  heightClass="min-h-[560px] h-[clamp(560px,72vh,900px)]"
                 />
               </div>
             </div>

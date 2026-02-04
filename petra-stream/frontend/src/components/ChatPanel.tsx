@@ -36,6 +36,7 @@ export interface ChatPanelProps {
   isModerator?: boolean;
   showModerationPanel?: boolean;
   collapsedOnDesktop?: boolean;
+  autoScrollMode?: "smart" | "always";
   useSocket?: boolean;
   onSendMessage?: (payload: ChatSendPayload) => Promise<void> | void;
   onModerateMessage?: (action: ChatModerationAction, id: string) => void;
@@ -61,6 +62,7 @@ export default function ChatPanel({
   isModerator = false,
   showModerationPanel = false,
   collapsedOnDesktop = false,
+  autoScrollMode,
   useSocket = true,
   onSendMessage,
   onModerateMessage,
@@ -352,6 +354,7 @@ export default function ChatPanel({
       isModerator={isModerator}
       showModerationPanel={showModerationPanel}
       collapsedOnDesktop={collapsedOnDesktop}
+      autoScrollMode={autoScrollMode}
       onSendMessage={handleSend}
       onModerateMessage={handleModeration}
       onClearChat={handleClear}
