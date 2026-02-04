@@ -120,12 +120,12 @@ export default function CreatePage(): JSX.Element {
         setStreamerId(String(res.data.streamer ?? res.data.id ?? ""));
         const status = String(res.data.status ?? "");
         setIsLive(status === "online");
-        const nextPlayback = String(res.data.playbackUrl ?? "").trim();
-        const nextScreen = String(res.data.screenPlaybackUrl ?? "").trim();
-        const nextCamera = String(res.data.cameraPlaybackUrl ?? "").trim();
+        const nextPlayback = sanitizeHlsUrl(String(res.data.playbackUrl ?? "").trim());
+        const nextScreen = sanitizeHlsUrl(String(res.data.screenPlaybackUrl ?? "").trim());
+        const nextCamera = sanitizeHlsUrl(String(res.data.cameraPlaybackUrl ?? "").trim());
         setPlaybackUrl(nextPlayback || playbackUrl);
-        setScreenPlaybackUrl(nextScreen || screenPlaybackUrl || screenHlsUrl);
-        setCameraPlaybackUrl(nextCamera || cameraPlaybackUrl || cameraHlsUrl);
+        setScreenPlaybackUrl(nextScreen || screenPlaybackUrl || sanitizeHlsUrl(screenHlsUrl));
+        setCameraPlaybackUrl(nextCamera || cameraPlaybackUrl || sanitizeHlsUrl(cameraHlsUrl));
         setSourceMode(res.data.sourceMode === "screen" ? "screen" : "camera");
         setIsPrepared(!!res.data.streamKey || !!res.data.title || !!res.data.playbackUrl);
         return;
@@ -143,8 +143,8 @@ export default function CreatePage(): JSX.Element {
       const data = res?.data;
       if (!data) return;
 
-      const nextScreenPlayback = String(data?.screen?.playbackUrl || "").trim();
-      const nextCameraPlayback = String(data?.camera?.playbackUrl || "").trim();
+      const nextScreenPlayback = sanitizeHlsUrl(String(data?.screen?.playbackUrl || "").trim());
+      const nextCameraPlayback = sanitizeHlsUrl(String(data?.camera?.playbackUrl || "").trim());
       const nextScreenPublish = String(data?.screen?.publishUrl || "").trim();
       const nextCameraPublish = String(data?.camera?.publishUrl || "").trim();
       const nextScreenWebrtcPlayback = String(data?.screen?.webrtcPlaybackUrl || "").trim();
@@ -206,10 +206,10 @@ export default function CreatePage(): JSX.Element {
 
   useEffect(() => {
     if (!screenPlaybackUrl && screenHlsUrl) {
-      setScreenPlaybackUrl(screenHlsUrl);
+      setScreenPlaybackUrl(sanitizeHlsUrl(screenHlsUrl));
     }
     if (!cameraPlaybackUrl && cameraHlsUrl) {
-      setCameraPlaybackUrl(cameraHlsUrl);
+      setCameraPlaybackUrl(sanitizeHlsUrl(cameraHlsUrl));
     }
   }, [screenHlsUrl, cameraHlsUrl, screenPlaybackUrl, cameraPlaybackUrl]);
 
@@ -457,6 +457,11 @@ export default function CreatePage(): JSX.Element {
       if (!silent) setCheckingPlayback(false);
     }
   }
+  function sanitizeHlsUrl(input?: string) {
+    const trimmed = (input ?? "").trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\?%22%22$/i, "").replace(/\?""$/i, "");
+  }
   function normalizeBaseUrl(input: string) {
     const trimmed = input.trim();
     if (!trimmed) return "";
@@ -512,17 +517,17 @@ export default function CreatePage(): JSX.Element {
   }) {
     const identity = streamerId || authUser?.username || authUser?.address || authUser?.id;
     if (!identity) return;
-    const basePlayback = (next?.playbackUrl ?? playbackUrl).trim();
-    const fallbackCamera = cameraHlsUrl.trim();
-    const fallbackScreen = screenHlsUrl.trim();
+    const basePlayback = sanitizeHlsUrl((next?.playbackUrl ?? playbackUrl).trim());
+    const fallbackCamera = sanitizeHlsUrl(cameraHlsUrl.trim());
+    const fallbackScreen = sanitizeHlsUrl(screenHlsUrl.trim());
     const payload = {
       sourceMode: next?.sourceMode ?? sourceMode,
       screenPlaybackUrl:
-        (next?.screenPlaybackUrl ?? screenPlaybackUrl).trim()
+        sanitizeHlsUrl((next?.screenPlaybackUrl ?? screenPlaybackUrl).trim())
         || fallbackScreen
         || (basePlayback && (next?.sourceMode ?? sourceMode) === "screen" ? basePlayback : undefined),
       cameraPlaybackUrl:
-        (next?.cameraPlaybackUrl ?? cameraPlaybackUrl).trim()
+        sanitizeHlsUrl((next?.cameraPlaybackUrl ?? cameraPlaybackUrl).trim())
         || fallbackCamera
         || (basePlayback && (next?.sourceMode ?? sourceMode) === "camera" ? basePlayback : undefined),
     };
@@ -547,14 +552,14 @@ export default function CreatePage(): JSX.Element {
       if (!title.trim()) setTitle(finalTitle);
       const fallbackPlaybackUrl =
         sourceMode === "screen"
-          ? ((screenPlaybackUrl || screenHlsUrl).trim() || (cameraPlaybackUrl || cameraHlsUrl).trim())
-          : ((cameraPlaybackUrl || cameraHlsUrl).trim() || (screenPlaybackUrl || screenHlsUrl).trim());
+          ? (sanitizeHlsUrl((screenPlaybackUrl || screenHlsUrl).trim()) || sanitizeHlsUrl((cameraPlaybackUrl || cameraHlsUrl).trim()))
+          : (sanitizeHlsUrl((cameraPlaybackUrl || cameraHlsUrl).trim()) || sanitizeHlsUrl((screenPlaybackUrl || screenHlsUrl).trim()));
       const derivedPlaybackUrl =
         (autoPlayback && fallbackPlaybackUrl)
-        || (autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : playbackUrl.trim());
-      const derivedScreenUrl = (screenPlaybackUrl || screenHlsUrl || (sourceMode === "screen" ? derivedPlaybackUrl : "")).trim();
+        || (autoPlayback && hlsBaseUrl ? resolvePlaybackUrl(hlsBaseUrl, key) : sanitizeHlsUrl(playbackUrl.trim()));
+      const derivedScreenUrl = sanitizeHlsUrl((screenPlaybackUrl || screenHlsUrl || (sourceMode === "screen" ? derivedPlaybackUrl : "")).trim());
       const derivedCameraUrl =
-        (cameraPlaybackUrl || cameraHlsUrl || (sourceMode === "camera" ? derivedPlaybackUrl : "")).trim();
+        sanitizeHlsUrl((cameraPlaybackUrl || cameraHlsUrl || (sourceMode === "camera" ? derivedPlaybackUrl : "")).trim());
       if (derivedPlaybackUrl) setPlaybackUrl(derivedPlaybackUrl);
       if (derivedScreenUrl) setScreenPlaybackUrl(derivedScreenUrl);
       if (derivedCameraUrl) setCameraPlaybackUrl(derivedCameraUrl);

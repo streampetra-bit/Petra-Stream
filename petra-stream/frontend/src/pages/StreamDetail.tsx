@@ -387,7 +387,7 @@ export default function StreamDetail(): JSX.Element {
 
   function normalizePlaybackUrl(raw?: string) {
     if (!raw) return undefined;
-    const trimmed = raw.trim();
+    const trimmed = raw.trim().replace(/\?%22%22$/i, "").replace(/\?""$/i, "");
     if (!trimmed) return undefined;
     const base = hlsBaseUrl.replace(/\/+$/, "");
     const match = trimmed.match(/\/live\/([^/]+)\/index\.m3u8/i);

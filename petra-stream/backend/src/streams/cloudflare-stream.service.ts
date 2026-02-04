@@ -33,7 +33,8 @@ export class CloudflareStreamService {
 
   private get hlsQuery() {
     const raw = process.env.CLOUDFLARE_HLS_QUERY || '';
-    return raw.replace(/^\?/, '');
+    const cleaned = raw.trim().replace(/^["']|["']$/g, '');
+    return cleaned.replace(/^\?/, '');
   }
 
   private get preferLowLatency() {
