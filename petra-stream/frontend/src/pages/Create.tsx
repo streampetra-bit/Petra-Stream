@@ -796,21 +796,20 @@ export default function CreatePage(): JSX.Element {
       ? "bg-amber-400/10 text-amber-200 border-amber-400/30"
       : "bg-white/5 text-white/70 border-white/10";
   const primaryCtaLabel = isLive
-    ? "End broadcast"
+    ? "End stream"
     : supportsBrowserStudio
       ? canGoLive
-        ? "Start broadcast"
+        ? "Start stream"
         : isAuthed
           ? "Connect wallet to go live"
           : "Sign in to go live"
       : canGoLive
-        ? "Prepare broadcast"
+        ? "Prepare stream"
         : isAuthed
           ? "Connect wallet to go live"
           : "Sign in to go live";
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
-  const showStopButton = isPrepared || isLive;
   const detailsPanel = (
     <div className="glass-card p-6 sm:p-8 lg:p-10 rounded-[2.5rem]">
       <div className="mb-10">
@@ -1190,43 +1189,27 @@ export default function CreatePage(): JSX.Element {
 
       <div className="max-w-[1700px] mx-auto px-6 lg:px-10 py-8 sm:py-10 lg:py-12 space-y-10">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 items-start">
-          <div className="xl:col-span-8 space-y-10">
+          <div className="xl:col-span-7 space-y-10">
             <section className="glass-card rounded-[2.5rem] p-6 sm:p-8 space-y-6">
-              <div className="flex flex-col xl:flex-row items-start justify-between gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="h-px w-10 bg-primary/60" />
-                    <p className="text-primary font-bold tracking-[0.35em] uppercase text-[10px]">
-                      Creator Control Room
-                    </p>
-                  </div>
-                  <h2 className="text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight text-text leading-[1.1]">
-                    Build your stream
-                    <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
-                      like a broadcast studio.
-                    </span>
-                  </h2>
-                  <p className="text-sm sm:text-base text-subtle max-w-2xl leading-relaxed font-medium">
-                    Preview, studio controls, and chat — all aligned for creators who run live sessions at speed.
+              <div className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <span className="h-px w-10 bg-primary/60" />
+                  <p className="text-primary font-bold tracking-[0.35em] uppercase text-[10px]">
+                    Creator Control Room
                   </p>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className={`px-3 py-1.5 rounded-full border ${statusTone}`}>Status: {statusLabel}</span>
-                    <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
-                      {readinessLabel}
-                    </span>
-                    {supportsBrowserStudio ? (
-                      <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
-                        Browser studio ready
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
-                        Browser studio disabled
-                      </span>
-                    )}
-                  </div>
                 </div>
-                <div className="flex w-full flex-col sm:flex-row gap-3 xl:w-auto">
+                <h2 className="text-3xl sm:text-4xl xl:text-5xl font-black tracking-tight text-text leading-[1.08]">
+                  Build your stream
+                  <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
+                    like a broadcast studio.
+                  </span>
+                </h2>
+                <p className="text-sm sm:text-base text-subtle max-w-2xl leading-relaxed font-medium">
+                  Go live with a control room built for creators: instant preview, studio tools, and chat that keeps
+                  pace with your audience.
+                </p>
+                <div className="flex w-full flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => {
                       void primaryCtaAction();
@@ -1236,14 +1219,20 @@ export default function CreatePage(): JSX.Element {
                   >
                     {loading ? "Working..." : primaryCtaLabel}
                   </button>
-                  {showStopButton && (
-                    <button
-                      onClick={stopStream}
-                      disabled={loading}
-                      className="h-14 min-w-[200px] rounded-2xl border border-rose-500/40 bg-rose-500/10 text-rose-100 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-500/20 transition"
-                    >
-                      Stop broadcast
-                    </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className={`px-3 py-1.5 rounded-full border ${statusTone}`}>Status: {statusLabel}</span>
+                  <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
+                    {readinessLabel}
+                  </span>
+                  {supportsBrowserStudio ? (
+                    <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
+                      Browser studio ready
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
+                      Browser studio disabled
+                    </span>
                   )}
                 </div>
               </div>
@@ -1469,7 +1458,7 @@ export default function CreatePage(): JSX.Element {
                   )
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
-                    Click "Start broadcast" to open the studio controls and choose Camera or Screen.
+                    Click "Start stream" to open the studio controls and choose Camera or Screen.
                   </div>
                 )
               ) : (
@@ -1480,7 +1469,7 @@ export default function CreatePage(): JSX.Element {
               )}
             </section>
           </div>
-          <div className="xl:col-span-4">
+          <div className="xl:col-span-5">
             <div className="xl:sticky xl:top-28 flex flex-col gap-8">
               <div className="glass-card rounded-3xl p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
