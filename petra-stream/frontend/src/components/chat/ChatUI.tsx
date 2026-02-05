@@ -73,6 +73,7 @@ export default function ChatUI({
   const [hasUnread, setHasUnread] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [autoScrollLocked, setAutoScrollLocked] = useState(false);
   const [showModeration, setShowModeration] = useState(false);
   const initialScrollRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -116,6 +117,9 @@ export default function ChatUI({
       if (atBottom) {
         setHasUnread(false);
         setUnreadCount(0);
+        if (autoScrollEnabled) setAutoScrollLocked(false);
+      } else if (autoScrollEnabled) {
+        setAutoScrollLocked(true);
       }
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
@@ -138,9 +142,16 @@ export default function ChatUI({
     }
 
     if (autoScrollEnabled) {
-      scrollToBottom("smooth");
-      setHasUnread(false);
-      setUnreadCount(0);
+      if (!autoScrollLocked) {
+        scrollToBottom("smooth");
+        setHasUnread(false);
+        setUnreadCount(0);
+        return;
+      }
+      if (added > 0) {
+        setHasUnread(true);
+        setUnreadCount((count) => count + added);
+      }
       return;
     }
 
@@ -152,7 +163,7 @@ export default function ChatUI({
       setHasUnread(true);
       setUnreadCount((count) => count + added);
     }
-  }, [messages.length, isAtBottom]);
+  }, [messages.length, isAtBottom, autoScrollEnabled, autoScrollLocked]);
 
   useEffect(() => {
     if (!cooldownUntil) return;
@@ -174,6 +185,7 @@ export default function ChatUI({
     setHasUnread(false);
     setUnreadCount(0);
     setIsAtBottom(true);
+    setAutoScrollLocked(false);
   }, [streamId]);
 
   const handleSend = async () => {
@@ -234,7 +246,7 @@ export default function ChatUI({
           </span>
           {autoScrollEnabled ? (
             <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
-              Auto-scroll
+              {autoScrollLocked ? "Auto-scroll paused" : "Auto-scroll"}
             </span>
           ) : null}
           <span className="rounded-full border border-white/10 px-2 py-1 text-[10px]">
