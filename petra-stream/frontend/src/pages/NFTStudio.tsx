@@ -1,5 +1,6 @@
 // src/pages/NFTStudio.tsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { ethers } from "ethers";
 import Player from "../components/Player";
 import WalletHelpModal from "../components/WalletHelpModal";
@@ -54,6 +55,7 @@ function parseTags(value: string) {
 
 export default function NFTStudio(): JSX.Element {
   const toast = useToast();
+  const location = useLocation();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
@@ -89,6 +91,19 @@ export default function NFTStudio(): JSX.Element {
     window.addEventListener("auth-changed", handler);
     return () => window.removeEventListener("auth-changed", handler);
   }, []);
+
+  useEffect(() => {
+    if (!location.search) return;
+    const params = new URLSearchParams(location.search);
+    const incomingTitle = params.get("title")?.trim();
+    const incomingDescription = params.get("description")?.trim();
+    const incomingMedia = params.get("mediaUrl")?.trim() || params.get("playbackUrl")?.trim();
+    const incomingCover = params.get("coverUrl")?.trim();
+    if (incomingTitle && !title) setTitle(incomingTitle);
+    if (incomingDescription && !description) setDescription(incomingDescription);
+    if (incomingMedia && !mediaUrl) setMediaUrl(incomingMedia);
+    if (incomingCover && !coverUrl) setCoverUrl(incomingCover);
+  }, [location.search, title, description, mediaUrl, coverUrl]);
 
   useEffect(() => {
     if (!getAuthToken()) return;

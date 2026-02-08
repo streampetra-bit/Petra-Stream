@@ -1,6 +1,7 @@
 // src/pages/StreamDetail.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { ethers } from "ethers";
 import api from "../lib/api";
 import TipModal from "../components/TipModal";
 import ChatPanel from "../components/ChatPanel";
@@ -12,6 +13,7 @@ import CloudflareIframePlayer from "../components/CloudflareIframePlayer";
 import StreamCard from "../components/StreamCard";
 import { useToast } from "../contexts/ToastContext";
 import { readAuthUser } from "../lib/auth";
+import { connectWallet } from "../lib/wallet";
 import socket from "../lib/socket";
 
 type Stream = {
@@ -30,6 +32,7 @@ type Stream = {
   cloudflareCustomerCode?: string;
   cloudflareScreenInputId?: string;
   cloudflareCameraInputId?: string;
+  tokenGated?: boolean;
   screenUrl?: string;
   cameraUrl?: string;
   thumbnail?: string;
@@ -92,6 +95,7 @@ const MOCK_STREAMS: Stream[] = [
 export default function StreamDetail(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const streamId = id ?? "";
+  const navigate = useNavigate();
   const [stream, setStream] = useState<Stream | null>(null);
   const [openTip, setOpenTip] = useState(false);
   const [related, setRelated] = useState<Stream[]>([]);
@@ -108,12 +112,23 @@ export default function StreamDetail(): JSX.Element {
   const [snapshotCameraInputId, setSnapshotCameraInputId] = useState("");
   const [snapshotScreenVideoId, setSnapshotScreenVideoId] = useState("");
   const [snapshotCameraVideoId, setSnapshotCameraVideoId] = useState("");
+  const [playbackReady, setPlaybackReady] = useState(false);
+  const [checkingPlayback, setCheckingPlayback] = useState(false);
+  const [gateStatus, setGateStatus] = useState<"locked" | "checking" | "unlocked">("locked");
+  const [gateAddress, setGateAddress] = useState<string | null>(null);
   const playerRef = useRef<PlayerHandle | null>(null);
   const toast = useToast();
   const chatInputId = `chat-input-${streamId}`;
   const allowVpsFallback =
     String(import.meta.env.VITE_ALLOW_VPS_FALLBACK || "false").toLowerCase() === "true";
   const hlsBaseUrl = allowVpsFallback ? String(import.meta.env.VITE_HLS_BASE_URL || "") : "";
+  const clipNftAddress = String(import.meta.env.VITE_CLIP_NFT_ADDRESS || "");
+  const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
+  const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || "Somnia Testnet");
+  const rpcUrl = String(import.meta.env.VITE_SOMNIA_RPC_URL || "");
+  const explorerUrl = String(import.meta.env.VITE_SOMNIA_EXPLORER_URL || "");
+  const symbol = String(import.meta.env.VITE_SOMNIA_SYMBOL || "SOM");
+  const projectId = String(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "");
   const currentUser =
     authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "You";
 
@@ -407,6 +422,8 @@ export default function StreamDetail(): JSX.Element {
     (authUser.username === followTarget ||
       authUser.address === followTarget ||
       authUser.id === followTarget);
+  const gateRequired = Boolean(stream?.tokenGated) && !isOwner;
+  const gateUnlocked = !gateRequired || gateStatus === "unlocked";
   const fallbackPoster =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDiux0GO7MxQbxJ21SEoyp6z6VvJSxmNY60g-YK-BoJ4mYzHyuAfpDT3LhX_smt_Rddp6Uf2pDoYSi16COw16t1dXUOozZHnUVutpgChyuMpOiXj-GIAMPJMEkMldSxVCBe30rxMSsKHK2kSf3LHiRvy7Oa5IwkKCAHcJRi2TDE8r3bY8HYYficQy6qp4R9Ah6iDjVFewo0xxeBiJ7cVvCIwmYlFIjyDoKY0mrPf3Vp3xUZy4QUd5Ym0JYC_ue9Q1JvmLejy7lM2KU";
   const playbackSrc = isLive ? normalizePlaybackUrl(stream?.playbackUrl ?? stream?.videoUrl) : undefined;
@@ -457,6 +474,106 @@ export default function StreamDetail(): JSX.Element {
     snapshotCameraVideoId
     || pipInputId;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
+  const candidatePlaybackUrl = (mainSrc || playbackSrc || screenSrc || cameraSrc || "").trim();
+  const shouldShowPlayer = gateUnlocked && isLive && (playbackReady || !candidatePlaybackUrl);
+
+  useEffect(() => {
+    if (!isLive) {
+      setPlaybackReady(false);
+      return;
+    }
+    if (!candidatePlaybackUrl) {
+      setPlaybackReady(true);
+      return;
+    }
+    setPlaybackReady(false);
+    let active = true;
+    const poll = async () => {
+      if (!active) return;
+      setCheckingPlayback(true);
+      try {
+        const res = await api
+          .post("/api/streams/playback/check", { playbackUrl: candidatePlaybackUrl })
+          .catch(() => null);
+        const ok = Boolean(res?.data?.ok);
+        if (active) setPlaybackReady(ok);
+      } finally {
+        if (active) setCheckingPlayback(false);
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 6000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [isLive, candidatePlaybackUrl]);
+
+  useEffect(() => {
+    if (!gateRequired) {
+      setGateStatus("unlocked");
+      setGateAddress(null);
+      return;
+    }
+    setGateStatus("locked");
+    setGateAddress(null);
+  }, [gateRequired]);
+
+  async function checkTokenGate() {
+    if (!gateRequired) return true;
+    if (!clipNftAddress || !ethers.isAddress(clipNftAddress)) {
+      toast.error("Token gate unavailable", "Set VITE_CLIP_NFT_ADDRESS to verify access.");
+      return false;
+    }
+    try {
+      setGateStatus("checking");
+      const wallet = await connectWallet({
+        chainId,
+        chainName,
+        rpcUrl,
+        explorerUrl,
+        symbol,
+        projectId,
+        appName: "Petra Stream",
+        appUrl: typeof window !== "undefined" ? window.location.origin : "",
+      });
+      const contract = new ethers.Contract(
+        clipNftAddress,
+        ["function balanceOf(address owner) view returns (uint256)"],
+        wallet.provider
+      );
+      const balance = await contract.balanceOf(wallet.address);
+      if (BigInt(balance.toString()) > 0n) {
+        setGateStatus("unlocked");
+        setGateAddress(wallet.address);
+        return true;
+      }
+      setGateStatus("locked");
+      setGateAddress(wallet.address);
+      toast.error("Access denied", "You need a Petra Clip NFT to watch this stream.");
+      return false;
+    } catch (err) {
+      console.error("Token gate check failed", err);
+      setGateStatus("locked");
+      toast.error("Access check failed", "Connect a wallet on the correct network.");
+      return false;
+    }
+  }
+
+  async function checkPlaybackReady() {
+    if (!candidatePlaybackUrl) return true;
+    setCheckingPlayback(true);
+    try {
+      const res = await api
+        .post("/api/streams/playback/check", { playbackUrl: candidatePlaybackUrl })
+        .catch(() => null);
+      const ok = Boolean(res?.data?.ok);
+      setPlaybackReady(ok);
+      return ok;
+    } finally {
+      setCheckingPlayback(false);
+    }
+  }
 
   function normalizePlaybackUrl(raw?: string) {
     if (!raw) return undefined;
@@ -501,7 +618,17 @@ export default function StreamDetail(): JSX.Element {
   };
 
   const mintClip = () => {
-    toast.info("Minting coming soon", "Clip minting is not enabled yet.", 2500);
+    const params = new URLSearchParams();
+    const title = stream?.title?.trim();
+    const description = stream?.description?.trim();
+    const mediaUrl = (mainSrc || playbackSrc || "").trim();
+    if (title) params.set("title", title);
+    if (description) params.set("description", description);
+    if (mediaUrl) params.set("mediaUrl", mediaUrl);
+    if (posterSrc) params.set("coverUrl", posterSrc);
+    if (streamId) params.set("streamId", streamId);
+    const query = params.toString();
+    navigate(query ? `/nft-studio?${query}` : "/nft-studio");
   };
 
   useEffect(() => {
@@ -612,44 +739,91 @@ export default function StreamDetail(): JSX.Element {
             <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-surface/60 shadow-[0_25px_60px_rgba(2,6,23,0.6)]">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-bg/60 to-accent/10" />
               <div className="relative">
-                {(() => {
-                  const preferIframe = true;
-                  if (preferIframe && customerCode && resolvedMainId) {
-                    return (
-                      <CloudflareIframePlayer
-                        customerCode={customerCode}
-                        inputId={resolvedMainId}
-                        title={stream.title ?? "Live"}
-                        heightClass="aspect-video"
-                        autoplay
-                        muted
-                        controls
-                        preload="auto"
-                      />
-                    );
-                  }
-                  if (!mainSrc && mainWebrtcSrc) {
-                    return (
-                      <WebRTCPlayer
-                        playbackUrl={mainWebrtcSrc}
-                        title={stream.title ?? "Live"}
-                        heightClass="aspect-video"
-                        autoPlay
-                        startMuted
-                      />
-                    );
-                  }
-                  return (
-                    <Player
-                      ref={playerRef}
-                      src={mainSrc}
-                      poster={posterSrc}
-                      title={stream.title ?? "Live"}
-                      heightClass="aspect-video"
-                    />
-                  );
-                })()}
-                {pipSrc ? (
+                {gateUnlocked ? (
+                  shouldShowPlayer ? (
+                    (() => {
+                      const preferIframe = true;
+                      if (preferIframe && customerCode && resolvedMainId) {
+                        return (
+                          <CloudflareIframePlayer
+                            customerCode={customerCode}
+                            inputId={resolvedMainId}
+                            title={stream.title ?? "Live"}
+                            heightClass="aspect-video"
+                            autoplay
+                            muted
+                            controls
+                            preload="auto"
+                          />
+                        );
+                      }
+                      if (!mainSrc && mainWebrtcSrc) {
+                        return (
+                          <WebRTCPlayer
+                            playbackUrl={mainWebrtcSrc}
+                            title={stream.title ?? "Live"}
+                            heightClass="aspect-video"
+                            autoPlay
+                            startMuted
+                          />
+                        );
+                      }
+                      return (
+                        <Player
+                          ref={playerRef}
+                          src={mainSrc}
+                          poster={posterSrc}
+                          title={stream.title ?? "Live"}
+                          heightClass="aspect-video"
+                        />
+                      );
+                    })()
+                  ) : (
+                    <div className="aspect-video flex items-center justify-center bg-bg/80">
+                      <div className="mx-auto max-w-md text-center px-6 py-8">
+                        <div className="text-xs font-bold uppercase tracking-[0.35em] text-primary">
+                          Starting stream
+                        </div>
+                        <h3 className="mt-3 text-2xl font-bold text-text">Waiting for broadcast</h3>
+                        <p className="mt-3 text-sm text-subtle">
+                          Cloudflare hasn’t received the live signal yet. This usually takes a few seconds.
+                        </p>
+                        <button
+                          onClick={() => void checkPlaybackReady()}
+                          disabled={checkingPlayback}
+                          className="mt-5 inline-flex items-center justify-center rounded-full border border-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-text"
+                        >
+                          {checkingPlayback ? "Checking..." : "Retry playback check"}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="aspect-video flex items-center justify-center bg-bg/80">
+                    <div className="mx-auto max-w-md text-center px-6 py-8">
+                      <div className="text-xs font-bold uppercase tracking-[0.35em] text-primary">
+                        Token-gated
+                      </div>
+                      <h3 className="mt-3 text-2xl font-bold text-text">Collector access only</h3>
+                      <p className="mt-3 text-sm text-subtle">
+                        Connect a wallet that holds a Petra Clip NFT to unlock this stream.
+                      </p>
+                      <button
+                        onClick={() => void checkTokenGate()}
+                        disabled={gateStatus === "checking"}
+                        className="mt-5 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-xs font-bold uppercase tracking-[0.2em] text-bg"
+                      >
+                        {gateStatus === "checking" ? "Checking..." : "Unlock stream"}
+                      </button>
+                      {gateAddress ? (
+                        <div className="mt-3 text-[11px] text-white/50">
+                          Wallet: <span className="font-mono text-text">{gateAddress.slice(0, 6)}...{gateAddress.slice(-4)}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+                {pipSrc && shouldShowPlayer ? (
                   <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-20">
                     <div className="relative w-28 sm:w-32 md:w-40 lg:w-56 rounded-2xl overflow-hidden border border-white/15 bg-bg/80 shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
                       {(() => {

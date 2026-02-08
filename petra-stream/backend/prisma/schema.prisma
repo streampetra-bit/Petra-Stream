@@ -16,6 +16,7 @@ model Stream {
   streamKey                  String?  @unique
   status                     String   @default("offline")
   createdAt                  DateTime @default(now())
+  tokenGated                 Boolean  @default(false)
   cloudflareScreenInputId    String?  @unique
   cloudflareCameraInputId    String?  @unique
   cloudflareScreenPublishUrl String?

@@ -81,6 +81,7 @@ export default function NFTGallery(): JSX.Element {
 
   const clipNftAddress = String(import.meta.env.VITE_CLIP_NFT_ADDRESS || "");
   const marketplaceAddress = String(import.meta.env.VITE_CLIP_MARKETPLACE_ADDRESS || "");
+  const vaultAddress = String(import.meta.env.VITE_VAULT_ADDRESS || "");
   const chainId = Number(import.meta.env.VITE_SOMNIA_CHAIN_ID || 2047);
   const chainIdHex = `0x${chainId.toString(16)}`;
   const chainName = String(import.meta.env.VITE_SOMNIA_CHAIN_NAME || "Somnia Testnet");
@@ -128,6 +129,7 @@ export default function NFTGallery(): JSX.Element {
   }, []);
 
   const marketplaceReady = marketplaceAddress && ethers.isAddress(marketplaceAddress);
+  const vaultReady = vaultAddress && ethers.isAddress(vaultAddress);
 
   async function refreshListings() {
     if (!rpcUrl || !marketplaceReady) return;
@@ -250,12 +252,17 @@ export default function NFTGallery(): JSX.Element {
       toast.error("Token not ready", "Mint confirmation still pending.");
       return;
     }
-    if (!ethers.isAddress(recipient)) {
-      toast.error("Invalid address", "Enter a valid wallet address.");
-      return;
-    }
     if (!clipNftAddress || !ethers.isAddress(clipNftAddress)) {
       toast.error("Missing NFT contract", "Set VITE_CLIP_NFT_ADDRESS.");
+      return;
+    }
+    if (vaultReady) {
+      if (!giftTarget.creatorAddress || !ethers.isAddress(giftTarget.creatorAddress)) {
+        toast.error("Creator wallet missing", "Ask the creator to connect their wallet.");
+        return;
+      }
+    } else if (!ethers.isAddress(recipient)) {
+      toast.error("Invalid address", "Enter a valid wallet address.");
       return;
     }
     const wallet = await ensureWalletConnected();
@@ -263,14 +270,40 @@ export default function NFTGallery(): JSX.Element {
     setSubmitting(true);
     try {
       const tokenId = BigInt(giftTarget.tokenId);
-      const contract = new ethers.Contract(
-        clipNftAddress,
-        ["function safeTransferFrom(address from, address to, uint256 tokenId)"],
-        wallet.signer
-      );
-      const tx = await contract.safeTransferFrom(wallet.address, recipient, tokenId);
-      await tx.wait();
-      toast.success("Gift sent", "NFT transferred successfully.", 2600);
+      if (vaultReady) {
+        const nft = new ethers.Contract(
+          clipNftAddress,
+          [
+            "function getApproved(uint256) view returns (address)",
+            "function isApprovedForAll(address owner, address operator) view returns (bool)",
+            "function setApprovalForAll(address operator, bool approved)",
+          ],
+          wallet.signer
+        );
+        const approvedForAll = await nft.isApprovedForAll(wallet.address, vaultAddress);
+        const approvedForToken = await nft.getApproved(tokenId);
+        if (!approvedForAll && approvedForToken.toLowerCase() !== vaultAddress.toLowerCase()) {
+          const approvalTx = await nft.setApprovalForAll(vaultAddress, true);
+          await approvalTx.wait();
+        }
+        const vault = new ethers.Contract(
+          vaultAddress,
+          ["function giftNFT(address nftContract, uint256 tokenId, address streamer)"],
+          wallet.signer
+        );
+        const tx = await vault.giftNFT(clipNftAddress, tokenId, giftTarget.creatorAddress);
+        await tx.wait();
+        toast.success("Gift recorded", "On-chain gift sent to the creator.", 2600);
+      } else {
+        const contract = new ethers.Contract(
+          clipNftAddress,
+          ["function safeTransferFrom(address from, address to, uint256 tokenId)"],
+          wallet.signer
+        );
+        const tx = await contract.safeTransferFrom(wallet.address, recipient, tokenId);
+        await tx.wait();
+        toast.success("Gift sent", "NFT transferred successfully.", 2600);
+      }
       setGiftTarget(null);
       setRecipient("");
     } catch (err) {
@@ -611,14 +644,25 @@ export default function NFTGallery(): JSX.Element {
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-bg p-6 space-y-4">
             <div className="text-lg font-bold">Gift NFT</div>
             <p className="text-xs text-subtle">
-              Transfer <span className="text-text font-semibold">{giftTarget.title}</span> to a fan or creator wallet.
+              {vaultReady
+                ? "Send this NFT into the Petra Vault so the gift shows up in activity and balances."
+                : "Transfer this NFT directly to a fan or creator wallet."}
             </p>
-            <input
-              value={recipient}
-              onChange={(event) => setRecipient(event.target.value)}
-              className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-sm text-text"
-              placeholder="Recipient wallet address"
-            />
+            {vaultReady ? (
+              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-subtle">
+                Creator wallet:{" "}
+                <span className="font-mono text-text">
+                  {giftTarget.creatorAddress || "Missing"}
+                </span>
+              </div>
+            ) : (
+              <input
+                value={recipient}
+                onChange={(event) => setRecipient(event.target.value)}
+                className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-4 text-sm text-text"
+                placeholder="Recipient wallet address"
+              />
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => setGiftTarget(null)}
@@ -633,7 +677,7 @@ export default function NFTGallery(): JSX.Element {
                 className="flex-1 h-11 rounded-xl bg-primary text-bg text-xs font-semibold disabled:opacity-60"
                 type="button"
               >
-                {submitting ? "Sending..." : "Send gift"}
+                {submitting ? "Sending..." : vaultReady ? "Gift via vault" : "Send gift"}
               </button>
             </div>
           </div>

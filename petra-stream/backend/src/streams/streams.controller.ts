@@ -209,7 +209,8 @@ export class StreamsController {
       cameraPlaybackUrl: body.cameraPlaybackUrl,
       cloudflareCustomerCode: body.cloudflareCustomerCode,
       cloudflareScreenInputId: body.cloudflareScreenInputId,
-      cloudflareCameraInputId: body.cloudflareCameraInputId
+      cloudflareCameraInputId: body.cloudflareCameraInputId,
+      tokenGated: typeof body.tokenGated === 'boolean' ? body.tokenGated : undefined
     });
   }
 

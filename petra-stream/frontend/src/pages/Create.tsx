@@ -38,6 +38,7 @@ export default function CreatePage(): JSX.Element {
   const [autoPlayback, setAutoPlayback] = useState(true);
   const [loading, setLoading] = useState(false);
   const [checkingPlayback, setCheckingPlayback] = useState(false);
+  const [playbackReady, setPlaybackReady] = useState(false);
   const [streamKey, setStreamKey] = useState<string | null>(null);
   const [showPublisher, setShowPublisher] = useState(false);
   const [streamerId, setStreamerId] = useState("");
@@ -110,6 +111,8 @@ export default function CreatePage(): JSX.Element {
     setCameraInputId("");
     setScreenVideoId("");
     setCameraVideoId("");
+    setPlaybackReady(false);
+    setTokenGated(true);
     setSourceMode("camera");
     setIsPrepared(false);
     setShowPublisher(false);
@@ -131,6 +134,9 @@ export default function CreatePage(): JSX.Element {
         setStreamerId(String(res.data.streamer ?? res.data.id ?? ""));
         const status = String(res.data.status ?? "");
         setIsLive(status === "online");
+        if (typeof res.data.tokenGated === "boolean") {
+          setTokenGated(res.data.tokenGated);
+        }
         const nextPlayback = sanitizeHlsUrl(String(res.data.playbackUrl ?? "").trim());
         const nextScreen = sanitizeHlsUrl(String(res.data.screenPlaybackUrl ?? "").trim());
         const nextCamera = sanitizeHlsUrl(String(res.data.cameraPlaybackUrl ?? "").trim());
@@ -234,6 +240,11 @@ export default function CreatePage(): JSX.Element {
       window.clearInterval(timer);
     };
   }, [showPublisher, isLive]);
+
+  useEffect(() => {
+    if (!isPrepared) return;
+    void updateStreamLayout({ tokenGated });
+  }, [tokenGated, isPrepared]);
 
   function requireAuth(nextMode: "login" | "register" = "login") {
     if (getAuthToken()) return true;
@@ -470,6 +481,7 @@ export default function CreatePage(): JSX.Element {
     const url = (overrideUrl ?? playbackUrl).trim();
     if (!url) {
       if (!silent) toast.error("Playback URL required", "Set a playback URL first");
+      if (!silent) setPlaybackReady(false);
       return false;
     }
     if (!silent) setCheckingPlayback(true);
@@ -477,9 +489,11 @@ export default function CreatePage(): JSX.Element {
       const res = await api.post("/api/streams/playback/check", { playbackUrl: url }).catch(() => null);
       if (res?.data?.ok) {
         if (!silent) toast.success("Playback ready", `HTTP ${res.data.status}`);
+        setPlaybackReady(true);
         setLastPlaybackCheck({ ok: true, status: res.data.status, at: new Date().toISOString() });
         return true;
       }
+      setPlaybackReady(false);
       setLastPlaybackCheck({
         ok: false,
         status: res?.data?.status,
@@ -490,6 +504,7 @@ export default function CreatePage(): JSX.Element {
       return false;
     } catch (err) {
       console.error(err);
+      setPlaybackReady(false);
       setLastPlaybackCheck({
         ok: false,
         reason: (err as any)?.message || "fetch_failed",
@@ -569,6 +584,7 @@ export default function CreatePage(): JSX.Element {
     screenPlaybackUrl?: string;
     cameraPlaybackUrl?: string;
     playbackUrl?: string;
+    tokenGated?: boolean;
   }) {
     const identity = streamerId || authUser?.username || authUser?.address || authUser?.id;
     if (!identity) return;
@@ -588,6 +604,7 @@ export default function CreatePage(): JSX.Element {
       cloudflareCustomerCode: cloudflareCustomerCode || undefined,
       cloudflareScreenInputId: screenInputId || undefined,
       cloudflareCameraInputId: cameraInputId || undefined,
+      tokenGated: typeof (next?.tokenGated ?? tokenGated) === "boolean" ? (next?.tokenGated ?? tokenGated) : undefined,
     };
     try {
       await api.post(`/api/streams/${encodeURIComponent(identity)}/update`, payload);
@@ -639,6 +656,7 @@ export default function CreatePage(): JSX.Element {
         cloudflareCustomerCode: cloudflareCustomerCode || undefined,
         cloudflareScreenInputId: screenInputId || undefined,
         cloudflareCameraInputId: cameraInputId || undefined,
+        tokenGated,
       };
       const res = await api.post("/api/streams/start", payload);
       if (res?.data?.streamer || res?.data?.id) {
@@ -810,6 +828,7 @@ export default function CreatePage(): JSX.Element {
           : "Sign in to go live";
   const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
+  const showPreview = isLive && playbackReady;
   const detailsPanel = (
     <div className="glass-card p-6 sm:p-8 lg:p-10 rounded-[2.5rem]">
       <div className="mb-10">
@@ -1172,6 +1191,24 @@ export default function CreatePage(): JSX.Element {
     return () => window.clearInterval(timer);
   }, [isPrepared, playbackUrl, isLive]);
 
+  useEffect(() => {
+    if (!isLive) {
+      setPlaybackReady(false);
+      return;
+    }
+    const url = (previewSrc || "").trim();
+    if (!url) {
+      setPlaybackReady(false);
+      return;
+    }
+    setPlaybackReady(false);
+    const timer = window.setInterval(() => {
+      void checkPlaybackUrl(true, url);
+    }, 6000);
+    void checkPlaybackUrl(true, url);
+    return () => window.clearInterval(timer);
+  }, [isLive, previewSrc]);
+
   return (
     <div className="relative overflow-x-hidden create-page">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -1266,58 +1303,79 @@ export default function CreatePage(): JSX.Element {
               <div className="relative mt-3 glass-card rounded-[2.5rem] p-3">
                 <div className="relative rounded-[2rem] overflow-hidden bg-bg/70">
                   <div className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-bg/20 pointer-events-none" />
-                  {(() => {
-                    const webRtcSrc =
-                      sourceMode === "screen"
-                        ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
-                        : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
-                    const previewCustomerCode =
-                      cloudflareCustomerCode
-                      || extractCustomerCode(screenPlaybackUrl)
-                      || extractCustomerCode(cameraPlaybackUrl)
-                      || extractCustomerCode(playbackUrl)
-                      || extractCustomerCode(screenWebrtcPlaybackUrl)
-                      || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                    const previewInputId =
-                      sourceMode === "screen"
-                        ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
-                        : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
-                    const preferIframe = true;
-                    if (preferIframe && previewInputId && previewCustomerCode) {
+                  {showPreview ? (
+                    (() => {
+                      const webRtcSrc =
+                        sourceMode === "screen"
+                          ? (screenWebrtcPlaybackUrl || cameraWebrtcPlaybackUrl)
+                          : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
+                      const previewCustomerCode =
+                        cloudflareCustomerCode
+                        || extractCustomerCode(screenPlaybackUrl)
+                        || extractCustomerCode(cameraPlaybackUrl)
+                        || extractCustomerCode(playbackUrl)
+                        || extractCustomerCode(screenWebrtcPlaybackUrl)
+                        || extractCustomerCode(cameraWebrtcPlaybackUrl);
+                      const previewInputId =
+                        sourceMode === "screen"
+                          ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
+                          : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
+                      const preferIframe = true;
+                      if (preferIframe && previewInputId && previewCustomerCode) {
+                        return (
+                          <CloudflareIframePlayer
+                            customerCode={previewCustomerCode}
+                            inputId={previewInputId}
+                            title={title || "Broadcast preview"}
+                            heightClass="aspect-video"
+                            autoplay
+                            muted
+                            controls
+                            preload="auto"
+                          />
+                        );
+                      }
+                      if (!previewSrc && webRtcSrc) {
+                        return (
+                          <WebRTCPlayer
+                            heightClass="aspect-video"
+                            title={title || "Broadcast preview"}
+                            playbackUrl={webRtcSrc}
+                            autoPlay
+                            startMuted
+                          />
+                        );
+                      }
                       return (
-                        <CloudflareIframePlayer
-                          customerCode={previewCustomerCode}
-                          inputId={previewInputId}
-                          title={title || "Broadcast preview"}
-                          heightClass="aspect-video"
-                          autoplay
-                          muted
-                          controls
-                          preload="auto"
-                        />
-                      );
-                    }
-                    if (!previewSrc && webRtcSrc) {
-                      return (
-                        <WebRTCPlayer
+                        <Player
                           heightClass="aspect-video"
                           title={title || "Broadcast preview"}
-                          playbackUrl={webRtcSrc}
+                          src={previewSrc}
                           autoPlay
                           startMuted
                         />
                       );
-                    }
-                    return (
-                      <Player
-                        heightClass="aspect-video"
-                        title={title || "Broadcast preview"}
-                        src={previewSrc}
-                        autoPlay
-                        startMuted
-                      />
-                    );
-                  })()}
+                    })()
+                  ) : (
+                    <div className="aspect-video flex items-center justify-center bg-bg/70">
+                      <div className="text-center px-6">
+                        <div className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                          Starting stream
+                        </div>
+                        <div className="mt-2 text-sm text-subtle">
+                          Waiting for Cloudflare to receive your broadcast.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={testPlayback}
+                          disabled={checkingPlayback}
+                          className="mt-4 px-3 py-2 rounded-full border border-white/10 text-[10px] uppercase tracking-widest"
+                        >
+                          {checkingPlayback ? "Checking..." : "Check playback"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-bg/60 px-4 py-2 text-[10px] font-bold tracking-[0.2em] uppercase text-text">
                     {broadcastLabel}
                   </div>

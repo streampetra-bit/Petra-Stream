@@ -17,6 +17,7 @@ type StreamMeta = {
   description?: string;
   status: 'online' | 'offline';
   streamKey?: string;
+  tokenGated?: boolean;
   playbackUrl?: string;
   screenPlaybackUrl?: string;
   cameraPlaybackUrl?: string;
@@ -172,7 +173,7 @@ export class StreamsService {
     return key;
   }
 
-  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; screenWebrtcPlaybackUrl?: string; cameraWebrtcPlaybackUrl?: string; webrtcPlaybackUrl?: string; sourceMode?: 'camera' | 'screen'; cloudflareCustomerCode?: string; cloudflareScreenInputId?: string; cloudflareCameraInputId?: string }) {
+  async startStream(payload: { streamer?: string; title?: string; description?: string; playbackUrl?: string; tags?: string[]; streamKey?: string; key?: string; screenPlaybackUrl?: string; cameraPlaybackUrl?: string; screenWebrtcPlaybackUrl?: string; cameraWebrtcPlaybackUrl?: string; webrtcPlaybackUrl?: string; sourceMode?: 'camera' | 'screen'; cloudflareCustomerCode?: string; cloudflareScreenInputId?: string; cloudflareCameraInputId?: string; tokenGated?: boolean }) {
     const streamer = this.defaultStreamer(payload.streamer);
     const streamKey = payload.streamKey ?? payload.key ?? this.streams.get(streamer)?.streamKey;
     const hlsBase = process.env.MEDIA_HLS_BASE_URL || '';
@@ -182,10 +183,15 @@ export class StreamsService {
     const screenPlaybackUrl =
       payload.screenPlaybackUrl ?? (sourceMode === 'screen' ? playbackUrl : undefined);
     const cameraPlaybackUrl = payload.cameraPlaybackUrl;
+    const tokenGated =
+      typeof payload.tokenGated === 'boolean'
+        ? payload.tokenGated
+        : this.streams.get(streamer)?.tokenGated;
     const meta: StreamMeta = {
       ...(this.streams.get(streamer) ?? { id: streamer, streamer }),
       title: payload.title,
       description: payload.description,
+      tokenGated,
       playbackUrl,
       screenPlaybackUrl,
       cameraPlaybackUrl,
@@ -211,6 +217,7 @@ export class StreamsService {
           streamer,
           status: 'online',
           streamKey,
+          tokenGated: typeof payload.tokenGated === 'boolean' ? payload.tokenGated : undefined,
           cloudflareCustomerCode: payload.cloudflareCustomerCode ?? undefined,
           cloudflareScreenInputId: payload.cloudflareScreenInputId ?? undefined,
           cloudflareCameraInputId: payload.cloudflareCameraInputId ?? undefined
@@ -221,6 +228,7 @@ export class StreamsService {
           title: payload.title ?? 'Untitled',
           status: 'online',
           streamKey,
+          tokenGated: typeof payload.tokenGated === 'boolean' ? payload.tokenGated : false,
           cloudflareCustomerCode: payload.cloudflareCustomerCode ?? undefined,
           cloudflareScreenInputId: payload.cloudflareScreenInputId ?? undefined,
           cloudflareCameraInputId: payload.cloudflareCameraInputId ?? undefined
@@ -254,16 +262,24 @@ export class StreamsService {
     const clean = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
     const next = { ...(this.streams.get(id) ?? { id, streamer: id, status: 'offline' as const }), ...clean };
     this.streams.set(id, next);
+    const tokenGated = typeof next.tokenGated === 'boolean' ? next.tokenGated : undefined;
     try {
       await prisma.stream.upsert({
         where: { streamId: id },
-        update: { title: next.title, streamer: id, status: next.status ?? 'offline', streamKey: next.streamKey },
+        update: {
+          title: next.title,
+          streamer: id,
+          status: next.status ?? 'offline',
+          streamKey: next.streamKey,
+          tokenGated
+        },
         create: {
           streamId: id,
           streamer: id,
           title: next.title ?? 'Untitled',
           status: next.status ?? 'offline',
-          streamKey: next.streamKey
+          streamKey: next.streamKey,
+          tokenGated: typeof tokenGated === 'boolean' ? tokenGated : false
         }
       });
     } catch (err) {
@@ -337,6 +353,7 @@ export class StreamsService {
       description: data.description,
       status: (data.status as StreamMeta['status']) ?? 'offline',
       streamKey: data.streamKey,
+      tokenGated: typeof data.tokenGated === 'boolean' ? data.tokenGated : undefined,
       playbackUrl: data.playbackUrl,
       screenPlaybackUrl: data.screenPlaybackUrl,
       cameraPlaybackUrl: data.cameraPlaybackUrl,
@@ -362,6 +379,7 @@ export class StreamsService {
       description: meta.description,
       status: meta.status,
       streamKey: meta.streamKey,
+      tokenGated: meta.tokenGated,
       playbackUrl: meta.playbackUrl,
       screenPlaybackUrl: meta.screenPlaybackUrl,
       cameraPlaybackUrl: meta.cameraPlaybackUrl,

@@ -8,6 +8,7 @@ type StreamDoc = {
   status?: string;
   streamKey?: string;
   tags?: string[];
+  tokenGated?: boolean;
   playbackUrl?: string;
   screenPlaybackUrl?: string;
   cameraPlaybackUrl?: string;
@@ -70,6 +71,7 @@ const StreamModel = model<StreamDoc>(
       status: String,
       streamKey: String,
       tags: [String],
+      tokenGated: Boolean,
       playbackUrl: String,
       screenPlaybackUrl: String,
       cameraPlaybackUrl: String,
