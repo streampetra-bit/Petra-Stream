@@ -260,7 +260,19 @@ export class StreamsService {
   async updateMeta(streamer: string, data: Partial<StreamMeta>) {
     const id = this.defaultStreamer(streamer);
     const clean = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
-    const next = { ...(this.streams.get(id) ?? { id, streamer: id, status: 'offline' as const }), ...clean };
+    let existing = this.streams.get(id);
+    if (!existing && !Object.prototype.hasOwnProperty.call(clean, 'status')) {
+      try {
+        const row = await prisma.stream.findUnique({ where: { streamId: id } });
+        if (row) {
+          existing = this.mapStream({ ...row, streamId: row.streamId ?? row.streamer });
+        }
+      } catch (err) {
+        this.logger.debug('updateMeta prisma lookup failed', err as any);
+      }
+    }
+    const base = existing ?? { id, streamer: id, status: 'offline' as const };
+    const next = { ...base, ...clean };
     this.streams.set(id, next);
     const tokenGated = typeof next.tokenGated === 'boolean' ? next.tokenGated : undefined;
     try {
