@@ -490,6 +490,7 @@ export default function CreatePage(): JSX.Element {
       if (res?.data?.ok) {
         if (!silent) toast.success("Playback ready", `HTTP ${res.data.status}`);
         setPlaybackReady(true);
+        if (!isLive) setIsLive(true);
         setLastPlaybackCheck({ ok: true, status: res.data.status, at: new Date().toISOString() });
         return true;
       }
