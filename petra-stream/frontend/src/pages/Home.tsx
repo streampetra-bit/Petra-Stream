@@ -1,5 +1,5 @@
 // src/pages/Home.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 
@@ -204,44 +204,60 @@ function StreamTile({ stream, index, layout }: { stream: Stream; index: number; 
 }
 
 export default function Home(): JSX.Element {
+  const [liveStreams, setLiveStreams] = useState<Stream[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingMock, setUsingMock] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  useEffect(() => {
-    let active = true;
-    const fetchStreams = async () => {
-      try {
-        const res = await api.get("/api/streams/active").catch(() => null);
-        if (!active) return;
-        if (res && Array.isArray(res.data) && res.data.length > 0) {
-          setStreams(res.data);
-          setUsingMock(false);
-        } else {
-          setStreams(MOCK_STREAMS);
-          setUsingMock(true);
-        }
-      } catch (err) {
-        if (!active) return;
-        console.error("Failed to fetch streams, using mock data", err);
+  const fetchStreams = useCallback(async () => {
+    try {
+      const res = await api
+        .get("/api/streams/active", {
+          params: { t: Date.now() },
+          headers: { "Cache-Control": "no-store" },
+        })
+        .catch(() => null);
+      const rows = res && Array.isArray(res.data) ? res.data : [];
+      const live = rows.filter(isStreamLive);
+      setLiveStreams(live);
+      if (rows.length > 0) {
+        setStreams(rows);
+        setUsingMock(false);
+      } else {
         setStreams(MOCK_STREAMS);
         setUsingMock(true);
-      } finally {
-        if (active) setLoading(false);
       }
+    } catch (err) {
+      console.error("Failed to fetch streams, using mock data", err);
+      setLiveStreams([]);
+      setStreams(MOCK_STREAMS);
+      setUsingMock(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const guardedFetch = async () => {
+      if (!active) return;
+      await fetchStreams();
     };
 
-    void fetchStreams();
-    const interval = window.setInterval(fetchStreams, 12000);
+    void guardedFetch();
+    const interval = window.setInterval(guardedFetch, 12000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [fetchStreams]);
 
-  const heroStream = streams[0];
-  const highlightStreams = useMemo(() => streams.slice(1, 3), [streams]);
+  const heroStream = liveStreams[0] || streams[0];
+  const highlightStreams = useMemo(
+    () => (liveStreams.length ? liveStreams.slice(1, 3) : streams.slice(1, 3)),
+    [liveStreams, streams]
+  );
 
   return (
     <section className="space-y-12">
@@ -348,6 +364,52 @@ export default function Home(): JSX.Element {
           Mock data in use - API returned no active streams.
         </div>
       )}
+
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-text">Live streams</h2>
+            <p className="text-sm subtle mt-1">Creators currently live on Petra Stream. Refreshes every 12 seconds.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={fetchStreams}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-bg/40 px-4 py-2 text-xs font-semibold text-text hover:bg-white/10 transition"
+            >
+              Refresh
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.5 4.5v6h6M19.5 19.5v-6h-6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.636 18.364a9 9 0 0112.728-12.728M18.364 5.636a9 9 0 01-12.728 12.728" />
+              </svg>
+            </button>
+            <Link to="/streams" className="text-sm font-semibold text-primary hover:underline">
+              View all
+            </Link>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-48 rounded-3xl bg-surface/60 animate-pulse" />
+            ))}
+          </div>
+        ) : liveStreams.length === 0 ? (
+          <div className="glass-card text-center py-10">
+            <div className="text-lg font-semibold">No creators are live yet.</div>
+            <p className="muted mt-2">
+              If you are live and not showing here, reload the page after 15s.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+            {liveStreams.map((stream, index) => (
+              <StreamTile key={stream.streamer || stream.id || index} stream={stream} index={index} layout="grid" />
+            ))}
+          </div>
+        )}
+      </section>
 
       <section>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
