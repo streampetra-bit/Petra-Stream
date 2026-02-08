@@ -1317,19 +1317,19 @@ export default function CreatePage(): JSX.Element {
                         || extractCustomerCode(playbackUrl)
                         || extractCustomerCode(screenWebrtcPlaybackUrl)
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                      const previewInputId =
-                        sourceMode === "screen"
-                          ? (screenVideoId || screenInputId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl))
-                          : (cameraVideoId || cameraInputId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || screenInputId || extractInputId(screenPlaybackUrl));
-                      const preferIframe = true;
-                      if (preferIframe && previewInputId && previewCustomerCode) {
-                        return (
-                          <CloudflareIframePlayer
-                            customerCode={previewCustomerCode}
-                            inputId={previewInputId}
-                            title={title || "Broadcast preview"}
-                            heightClass="aspect-video"
-                            autoplay
+                    const previewVideoId =
+                      sourceMode === "screen"
+                        ? (screenVideoId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || extractInputId(cameraPlaybackUrl))
+                        : (cameraVideoId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || extractInputId(screenPlaybackUrl));
+                    const preferIframe = true;
+                    if (preferIframe && previewVideoId && previewCustomerCode) {
+                      return (
+                        <CloudflareIframePlayer
+                          customerCode={previewCustomerCode}
+                          inputId={previewVideoId}
+                          title={title || "Broadcast preview"}
+                          heightClass="aspect-video"
+                          autoplay
                             muted
                             controls
                             preload="auto"
