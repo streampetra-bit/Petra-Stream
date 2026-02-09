@@ -45,6 +45,10 @@ export class StreamsService {
     return streamer || process.env.DEFAULT_STREAMER || 'demo-streamer';
   }
 
+  private tokenGatingEnabled() {
+    return String(process.env.TOKEN_GATING_ENABLED || 'false').toLowerCase() === 'true';
+  }
+
   async findActive(limit?: number): Promise<StreamMeta[]> {
     // merge sources to avoid missing active streams across instances
     const cached = Array.from(this.streams.values()).filter(s => s.status === 'online');
@@ -188,9 +192,11 @@ export class StreamsService {
       payload.screenPlaybackUrl ?? (sourceMode === 'screen' ? playbackUrl : undefined);
     const cameraPlaybackUrl = payload.cameraPlaybackUrl;
     const tokenGated =
-      typeof payload.tokenGated === 'boolean'
-        ? payload.tokenGated
-        : this.streams.get(streamer)?.tokenGated;
+      this.tokenGatingEnabled()
+        ? (typeof payload.tokenGated === 'boolean'
+            ? payload.tokenGated
+            : this.streams.get(streamer)?.tokenGated)
+        : false;
     const meta: StreamMeta = {
       ...(this.streams.get(streamer) ?? { id: streamer, streamer }),
       title: payload.title,
@@ -278,7 +284,9 @@ export class StreamsService {
     const base = existing ?? { id, streamer: id, status: 'offline' as const };
     const next = { ...base, ...clean };
     this.streams.set(id, next);
-    const tokenGated = typeof next.tokenGated === 'boolean' ? next.tokenGated : undefined;
+    const tokenGated = this.tokenGatingEnabled()
+      ? (typeof next.tokenGated === 'boolean' ? next.tokenGated : undefined)
+      : false;
     try {
       await prisma.stream.upsert({
         where: { streamId: id },
@@ -369,7 +377,9 @@ export class StreamsService {
       description: data.description,
       status: (data.status as StreamMeta['status']) ?? 'offline',
       streamKey: data.streamKey,
-      tokenGated: typeof data.tokenGated === 'boolean' ? data.tokenGated : undefined,
+      tokenGated: this.tokenGatingEnabled()
+        ? (typeof data.tokenGated === 'boolean' ? data.tokenGated : undefined)
+        : false,
       playbackUrl: data.playbackUrl,
       screenPlaybackUrl: data.screenPlaybackUrl,
       cameraPlaybackUrl: data.cameraPlaybackUrl,

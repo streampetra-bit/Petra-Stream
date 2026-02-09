@@ -422,7 +422,9 @@ export default function StreamDetail(): JSX.Element {
     (authUser.username === followTarget ||
       authUser.address === followTarget ||
       authUser.id === followTarget);
-  const gateRequired = Boolean(stream?.tokenGated) && !isOwner;
+  const tokenGatingEnabled =
+    String(import.meta.env.VITE_TOKEN_GATING_ENABLED || "false").toLowerCase() === "true";
+  const gateRequired = tokenGatingEnabled && Boolean(stream?.tokenGated) && !isOwner;
   const gateUnlocked = !gateRequired || gateStatus === "unlocked";
   const fallbackPoster =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDiux0GO7MxQbxJ21SEoyp6z6VvJSxmNY60g-YK-BoJ4mYzHyuAfpDT3LhX_smt_Rddp6Uf2pDoYSi16COw16t1dXUOozZHnUVutpgChyuMpOiXj-GIAMPJMEkMldSxVCBe30rxMSsKHK2kSf3LHiRvy7Oa5IwkKCAHcJRi2TDE8r3bY8HYYficQy6qp4R9Ah6iDjVFewo0xxeBiJ7cVvCIwmYlFIjyDoKY0mrPf3Vp3xUZy4QUd5Ym0JYC_ue9Q1JvmLejy7lM2KU";
