@@ -1382,10 +1382,10 @@ export default function CreatePage(): JSX.Element {
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
                     const previewVideoId =
                       sourceMode === "screen"
-                        ? (screenVideoId || extractInputId(screenPlaybackUrl) || extractInputId(playbackUrl) || cameraVideoId || extractInputId(cameraPlaybackUrl))
-                        : (cameraVideoId || extractInputId(cameraPlaybackUrl) || extractInputId(playbackUrl) || screenVideoId || extractInputId(screenPlaybackUrl));
-                    const preferIframe = true;
-                    if (preferIframe && previewVideoId && previewCustomerCode) {
+                        ? (screenVideoId || cameraVideoId)
+                        : (cameraVideoId || screenVideoId);
+                    const preferIframe = Boolean(previewVideoId && previewCustomerCode);
+                    if (preferIframe) {
                       return (
                         <CloudflareIframePlayer
                           customerCode={previewCustomerCode}
