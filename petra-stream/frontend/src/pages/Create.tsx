@@ -48,6 +48,7 @@ export default function CreatePage(): JSX.Element {
   const [royaltyPct, setRoyaltyPct] = useState(8);
   const [showWalletHelp, setShowWalletHelp] = useState(false);
   const [registeringWallet, setRegisteringWallet] = useState(false);
+  const [showStudioWarning, setShowStudioWarning] = useState(false);
   const [cameraPublishOverride, setCameraPublishOverride] = useState("");
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
@@ -170,7 +171,12 @@ export default function CreatePage(): JSX.Element {
   async function loadCloudflareInputs() {
     if (!getAuthToken()) return;
     try {
-      const res = await api.get("/api/streams/inputs").catch(() => null);
+      const res = await api
+        .get("/api/streams/inputs", {
+          params: { t: Date.now() },
+          headers: { "Cache-Control": "no-store" },
+        })
+        .catch(() => null);
       const data = res?.data;
       if (!data) return;
 
@@ -216,9 +222,22 @@ export default function CreatePage(): JSX.Element {
         || nextCameraInputId
       );
       setCloudflareReady(ready);
+      return {
+        ready,
+        screenPublishUrl: nextScreenPublish,
+        cameraPublishUrl: nextCameraPublish,
+        screenPlaybackUrl: nextScreenPlayback,
+        cameraPlaybackUrl: nextCameraPlayback,
+        customerCode: nextCustomerCode,
+        screenInputId: nextScreenInputId,
+        cameraInputId: nextCameraInputId,
+        screenVideoId: nextScreenVideoId,
+        cameraVideoId: nextCameraVideoId
+      };
     } catch {
       setCloudflareReady(false);
       // ignore if Cloudflare inputs are not configured
+      return { ready: false };
     }
   }
 
@@ -755,20 +774,47 @@ export default function CreatePage(): JSX.Element {
     if (ok) setIsLive(true);
   }
 
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   async function goLiveInBrowser() {
     const ok = await ensureWalletIfRequired();
     if (!ok) return;
     if (!requireAuth()) return;
+    setShowStudioWarning(false);
+    let inputs = await loadCloudflareInputs();
+    let inputScreenPublish = inputs?.screenPublishUrl?.trim();
+    let inputCameraPublish = inputs?.cameraPublishUrl?.trim();
+    let publishFromInputs =
+      sourceMode === "screen"
+        ? (inputScreenPublish || inputCameraPublish)
+        : (inputCameraPublish || inputScreenPublish);
+
     const key = await ensureStreamKey();
     if (!key) return;
     const prepared = await startStream(true, key);
     if (!prepared) return;
     if (!key) return;
-    const publishUrl = resolvedPublishUrl;
+    if (!publishFromInputs && !resolvedPublishUrl) {
+      // Give Cloudflare a moment to provision the inputs before failing.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await delay(900);
+        inputs = await loadCloudflareInputs();
+        inputScreenPublish = inputs?.screenPublishUrl?.trim();
+        inputCameraPublish = inputs?.cameraPublishUrl?.trim();
+        publishFromInputs =
+          sourceMode === "screen"
+            ? (inputScreenPublish || inputCameraPublish)
+            : (inputCameraPublish || inputScreenPublish);
+        if (publishFromInputs) break;
+      }
+    }
+
+    const publishUrl = publishFromInputs || resolvedPublishUrl;
     if (!publishUrl) {
+      setShowStudioWarning(true);
       toast.error(
-        "WebRTC publish URL not configured",
-        "Set VITE_WEBRTC_PUBLISH_URL_* or VITE_WEBRTC_PUBLISH_URL"
+        "Cloudflare inputs not ready",
+        "Wait a few seconds and try again."
       );
       return;
     }
@@ -818,6 +864,7 @@ export default function CreatePage(): JSX.Element {
     normalizeBaseUrl(resolvedCameraPublishUrl) && normalizeBaseUrl(resolvedScreenPublishUrl)
   );
   const isAuthed = Boolean(getAuthToken());
+  const canAttemptBrowserStudio = supportsBrowserStudio || (isAuthed && !allowVpsFallback);
   const chatUser =
     authUser?.displayName || authUser?.username || authUser?.address || authUser?.id || "Creator";
   const streamRoomId =
@@ -833,7 +880,7 @@ export default function CreatePage(): JSX.Element {
       : "bg-white/5 text-white/70 border-white/10";
   const primaryCtaLabel = isLive
     ? "End stream"
-    : supportsBrowserStudio
+    : canAttemptBrowserStudio
       ? canGoLive
         ? "Start stream"
         : isAuthed
@@ -844,7 +891,7 @@ export default function CreatePage(): JSX.Element {
         : isAuthed
           ? "Connect wallet to go live"
           : "Sign in to go live";
-  const primaryCtaAction = isLive ? stopStream : supportsBrowserStudio ? goLiveInBrowser : startStream;
+  const primaryCtaAction = isLive ? stopStream : canAttemptBrowserStudio ? goLiveInBrowser : startStream;
   const broadcastLabel = isLive ? "Broadcast live" : isPrepared ? "Broadcast ready" : "Broadcast idle";
   const showPreview = isLive && playbackReady;
   const detailsPanel = (
@@ -1280,23 +1327,22 @@ export default function CreatePage(): JSX.Element {
                   <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
                     {readinessLabel}
                   </span>
-                  {supportsBrowserStudio ? (
-                    <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
-                      Browser studio ready
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
-                      Browser studio disabled
-                    </span>
-                  )}
+                    {supportsBrowserStudio ? (
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 text-white/70">
+                        Browser studio ready
+                      </span>
+                    ) : showStudioWarning ? (
+                      <span className="px-3 py-1.5 rounded-full border border-rose-500/30 text-rose-200/80">
+                        Browser studio disabled
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              {!supportsBrowserStudio ? (
-                <div className="text-xs text-amber-200/80">
-                  Browser streaming is disabled. Set VITE_WEBRTC_PUBLISH_URL_CAMERA / VITE_WEBRTC_PUBLISH_URL_SCREEN
-                  (or enable VITE_ALLOW_VPS_FALLBACK to use the VPS publish URL).
-                </div>
-              ) : null}
+                {showStudioWarning && !supportsBrowserStudio ? (
+                  <div className="text-xs text-amber-200/80">
+                    Cloudflare inputs are not ready yet. Wait a few seconds and try again.
+                  </div>
+                ) : null}
             </section>
 
             <section className="relative">
@@ -1473,21 +1519,35 @@ export default function CreatePage(): JSX.Element {
                   <h3 className="text-lg font-semibold">Live Studio</h3>
                   <p className="muted text-sm mt-1">Broadcast directly from your browser without leaving the site.</p>
                 </div>
-                {supportsBrowserStudio ? (
-                  <button
-                    className="px-3 py-2 rounded-full border border-white/10 text-xs"
-                    onClick={() => {
-                      if (showPublisher) {
-                        setShowPublisher(false);
-                        return;
-                      }
-                      void goLiveInBrowser();
-                    }}
-                    disabled={!supportsBrowserStudio || loading}
-                  >
-                    {showPublisher ? "Hide studio" : "Show studio"}
-                  </button>
-                ) : null}
+                  {supportsBrowserStudio ? (
+                    <button
+                      className="px-3 py-2 rounded-full border border-white/10 text-xs"
+                      onClick={() => {
+                        if (showPublisher) {
+                          setShowPublisher(false);
+                          return;
+                        }
+                        void goLiveInBrowser();
+                      }}
+                      disabled={loading}
+                    >
+                      {showPublisher ? "Hide studio" : "Show studio"}
+                    </button>
+                  ) : canAttemptBrowserStudio ? (
+                    <button
+                      className="px-3 py-2 rounded-full border border-white/10 text-xs"
+                      onClick={() => {
+                        if (showPublisher) {
+                          setShowPublisher(false);
+                          return;
+                        }
+                        void goLiveInBrowser();
+                      }}
+                      disabled={loading}
+                    >
+                      {showPublisher ? "Hide studio" : "Show studio"}
+                    </button>
+                  ) : null}
               </div>
               {supportsBrowserStudio ? (
                 showPublisher ? (
@@ -1537,10 +1597,13 @@ export default function CreatePage(): JSX.Element {
                     Click "Start stream" to open the studio controls and choose Camera or Screen.
                   </div>
                 )
-              ) : (
+              ) : showStudioWarning ? (
                 <div className="rounded-2xl border border-dashed border-amber-400/30 p-6 text-center text-sm text-amber-200/80">
-                  Browser studio is disabled. Set VITE_WEBRTC_PUBLISH_URL_CAMERA / VITE_WEBRTC_PUBLISH_URL_SCREEN
-                  (or enable VITE_ALLOW_VPS_FALLBACK to use the VPS publish URL).
+                  Cloudflare inputs are not ready yet. Wait a few seconds and try again.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/70">
+                  Studio will be ready after inputs are created.
                 </div>
               )}
             </section>

@@ -128,7 +128,9 @@ export class StreamsController {
   @Post('start')
   start(@Req() req: any, @Body() body: any) {
     const identity = this.resolveIdentity(req, body?.streamer);
-    return this.streams.startStream({ ...body, streamer: identity }).then(async (meta) => {
+    return this.ensureCloudflareInputs(identity, body).then((patched) =>
+      this.streams.startStream({ ...patched, streamer: identity })
+    ).then(async (meta) => {
       await this.notifications.notifyStreamStatus(identity, 'online', meta?.title);
       return meta;
     });
@@ -303,5 +305,33 @@ export class StreamsController {
       process.env.DEFAULT_STREAMER ||
       'demo-streamer'
     );
+  }
+
+  private async ensureCloudflareInputs(identity: string, body: any) {
+    if (!this.cloudflare.isConfigured()) return body;
+    const hasInputs = Boolean(body?.cloudflareScreenInputId || body?.cloudflareCameraInputId);
+    if (hasInputs) return body;
+
+    try {
+      const inputs = await this.cloudflare.ensureInputs(identity);
+      if (!inputs) return body;
+      const screenPlayback = inputs?.screen?.playbackUrl;
+      const cameraPlayback = inputs?.camera?.playbackUrl;
+      const preferredPlayback =
+        body?.sourceMode === 'screen'
+          ? (screenPlayback || cameraPlayback)
+          : (cameraPlayback || screenPlayback);
+      return {
+        ...body,
+        cloudflareCustomerCode: inputs?.customerCode || body?.cloudflareCustomerCode,
+        cloudflareScreenInputId: inputs?.screen?.inputId || body?.cloudflareScreenInputId,
+        cloudflareCameraInputId: inputs?.camera?.inputId || body?.cloudflareCameraInputId,
+        screenPlaybackUrl: body?.screenPlaybackUrl || screenPlayback,
+        cameraPlaybackUrl: body?.cameraPlaybackUrl || cameraPlayback,
+        playbackUrl: body?.playbackUrl || preferredPlayback
+      };
+    } catch {
+      return body;
+    }
   }
 }
