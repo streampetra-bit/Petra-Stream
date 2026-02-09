@@ -44,7 +44,7 @@ export default function CreatePage(): JSX.Element {
   const [streamerId, setStreamerId] = useState("");
   const [showDetails, setShowDetails] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
-  const [tokenGated, setTokenGated] = useState(true);
+  const [tokenGated, setTokenGated] = useState(false);
   const [royaltyPct, setRoyaltyPct] = useState(8);
   const [showWalletHelp, setShowWalletHelp] = useState(false);
   const [registeringWallet, setRegisteringWallet] = useState(false);
