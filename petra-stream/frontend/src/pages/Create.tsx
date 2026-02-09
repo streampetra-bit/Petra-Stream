@@ -270,12 +270,14 @@ export default function CreatePage(): JSX.Element {
       await loadCloudflareInputs();
     };
     void poll();
-    const timer = window.setInterval(poll, 10000);
+    const fastPoll = showPublisher && (!screenVideoId && !cameraVideoId);
+    const intervalMs = fastPoll ? 3000 : 10000;
+    const timer = window.setInterval(poll, intervalMs);
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [showPublisher, isLive]);
+  }, [showPublisher, isLive, screenVideoId, cameraVideoId]);
 
   useEffect(() => {
     if (!isPrepared) return;
@@ -1380,16 +1382,16 @@ export default function CreatePage(): JSX.Element {
                         || extractCustomerCode(playbackUrl)
                         || extractCustomerCode(screenWebrtcPlaybackUrl)
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                    const previewVideoId =
-                      sourceMode === "screen"
-                        ? (screenVideoId || cameraVideoId)
-                        : (cameraVideoId || screenVideoId);
-                    const preferIframe = Boolean(previewVideoId && previewCustomerCode);
-                    if (preferIframe) {
-                      return (
-                        <CloudflareIframePlayer
-                          customerCode={previewCustomerCode}
-                          inputId={previewVideoId}
+                      const previewVideoId =
+                        sourceMode === "screen"
+                          ? (screenVideoId || cameraVideoId)
+                          : (cameraVideoId || screenVideoId);
+                      const preferIframe = Boolean(previewVideoId && previewCustomerCode);
+                      if (preferIframe) {
+                        return (
+                          <CloudflareIframePlayer
+                            customerCode={previewCustomerCode}
+                            inputId={previewVideoId}
                           title={title || "Broadcast preview"}
                           heightClass="aspect-video"
                           autoplay

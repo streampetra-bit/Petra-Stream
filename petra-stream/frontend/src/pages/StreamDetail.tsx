@@ -469,8 +469,7 @@ export default function StreamDetail(): JSX.Element {
     (stream?.sourceMode === "screen" ? snapshotScreenVideoId : snapshotCameraVideoId)
     || snapshotScreenVideoId
     || snapshotCameraVideoId;
-  const resolvedPipId =
-    snapshotCameraVideoId;
+  const resolvedPipId = snapshotCameraVideoId;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
   const candidatePlaybackUrl = (mainSrc || playbackSrc || screenSrc || cameraSrc || "").trim();
   const shouldShowPlayer = gateUnlocked && isLive && (playbackReady || !candidatePlaybackUrl);
