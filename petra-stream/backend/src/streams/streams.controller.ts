@@ -46,14 +46,16 @@ export class StreamsController {
     try {
       const screenStatus = String(data?.screen?.status || '').toLowerCase();
       const cameraStatus = String(data?.camera?.status || '').toLowerCase();
-      const live =
-        screenStatus === 'connected'
-        || screenStatus === 'live'
-        || screenStatus === 'live-inprogress'
-        || cameraStatus === 'connected'
-        || cameraStatus === 'live'
-        || cameraStatus === 'live-inprogress';
-      await this.streams.updateMeta(identity, { status: live ? 'online' : 'offline' });
+      const liveStatuses = new Set(['connected', 'live', 'live-inprogress', 'ready']);
+      const offlineStatuses = new Set(['disconnected', 'errored', 'error', 'stopped']);
+      const hasVideo = Boolean(data?.screen?.videoId || data?.camera?.videoId);
+      const isLive = hasVideo || liveStatuses.has(screenStatus) || liveStatuses.has(cameraStatus);
+      const isOffline = offlineStatuses.has(screenStatus) || offlineStatuses.has(cameraStatus);
+      if (isLive) {
+        await this.streams.updateMeta(identity, { status: 'online' });
+      } else if (isOffline) {
+        await this.streams.updateMeta(identity, { status: 'offline' });
+      }
     } catch {
       // ignore status sync failures
     }
@@ -373,24 +375,36 @@ export class StreamsController {
         take: 50
       });
 
-      const liveStatuses = new Set(['connected', 'live', 'live-inprogress']);
+      const liveStatuses = new Set(['connected', 'live', 'live-inprogress', 'ready']);
+      const offlineStatuses = new Set(['disconnected', 'errored', 'error', 'stopped']);
       for (const row of rows) {
         const screenId = row.cloudflareScreenInputId || '';
         const cameraId = row.cloudflareCameraInputId || '';
         let screenLive = false;
         let cameraLive = false;
+        let screenOffline = false;
+        let cameraOffline = false;
+        let hasVideo = false;
 
         if (screenId) {
           const status = await this.cloudflare.getLiveInputStatus(screenId).catch(() => '');
-          screenLive = liveStatuses.has(String(status || '').toLowerCase());
+          const normalized = String(status || '').toLowerCase();
+          screenLive = liveStatuses.has(normalized);
+          screenOffline = offlineStatuses.has(normalized);
+          const videoId = await this.cloudflare.getLiveInputActiveVideoId(screenId).catch(() => '');
+          if (videoId) hasVideo = true;
         }
         if (cameraId) {
           const status = await this.cloudflare.getLiveInputStatus(cameraId).catch(() => '');
-          cameraLive = liveStatuses.has(String(status || '').toLowerCase());
+          const normalized = String(status || '').toLowerCase();
+          cameraLive = liveStatuses.has(normalized);
+          cameraOffline = offlineStatuses.has(normalized);
+          const videoId = await this.cloudflare.getLiveInputActiveVideoId(cameraId).catch(() => '');
+          if (videoId) hasVideo = true;
         }
 
-        const nextStatus = screenLive || cameraLive ? 'online' : 'offline';
-        if (row.status === nextStatus) continue;
+        const nextStatus = screenLive || cameraLive || hasVideo ? 'online' : (screenOffline || cameraOffline ? 'offline' : null);
+        if (!nextStatus || row.status === nextStatus) continue;
         const streamer = row.streamer || row.streamId;
         await this.streams.updateMeta(streamer, { status: nextStatus });
       }

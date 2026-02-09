@@ -57,17 +57,28 @@ export class CloudflarePollingService implements OnModuleInit, OnModuleDestroy {
         let screenLive = false;
         let cameraLive = false;
 
+        let screenOffline = false;
+        let cameraOffline = false;
+        let hasVideo = false;
         if (screenId) {
           const status = await this.cloudflare.getLiveInputStatus(screenId);
-          screenLive = status === 'connected';
+          const normalized = String(status || '').toLowerCase();
+          screenLive = normalized === 'connected' || normalized === 'live' || normalized === 'live-inprogress' || normalized === 'ready';
+          screenOffline = normalized === 'disconnected' || normalized === 'errored' || normalized === 'error' || normalized === 'stopped';
+          const videoId = await this.cloudflare.getLiveInputActiveVideoId(screenId).catch(() => '');
+          if (videoId) hasVideo = true;
         }
         if (cameraId) {
           const status = await this.cloudflare.getLiveInputStatus(cameraId);
-          cameraLive = status === 'connected';
+          const normalized = String(status || '').toLowerCase();
+          cameraLive = normalized === 'connected' || normalized === 'live' || normalized === 'live-inprogress' || normalized === 'ready';
+          cameraOffline = normalized === 'disconnected' || normalized === 'errored' || normalized === 'error' || normalized === 'stopped';
+          const videoId = await this.cloudflare.getLiveInputActiveVideoId(cameraId).catch(() => '');
+          if (videoId) hasVideo = true;
         }
 
-        const nextStatus = screenLive || cameraLive ? 'online' : 'offline';
-        if (row.status === nextStatus) continue;
+        const nextStatus = screenLive || cameraLive || hasVideo ? 'online' : (screenOffline || cameraOffline ? 'offline' : null);
+        if (!nextStatus || row.status === nextStatus) continue;
 
         const streamer = row.streamer || row.streamId;
         await this.streams.updateMeta(streamer, { status: nextStatus });
