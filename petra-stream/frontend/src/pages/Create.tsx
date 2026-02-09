@@ -57,6 +57,7 @@ export default function CreatePage(): JSX.Element {
   const [cameraInputId, setCameraInputId] = useState("");
   const [screenVideoId, setScreenVideoId] = useState("");
   const [cameraVideoId, setCameraVideoId] = useState("");
+  const [cloudflareReady, setCloudflareReady] = useState(false);
   const [lastPlaybackCheck, setLastPlaybackCheck] = useState<{
     ok: boolean;
     status?: number;
@@ -75,10 +76,17 @@ export default function CreatePage(): JSX.Element {
   const ingestUrl = import.meta.env.VITE_INGEST_URL || "";
   const hlsBaseUrl = allowVpsFallback ? import.meta.env.VITE_HLS_BASE_URL || "" : "";
   const webrtcBaseUrl = allowVpsFallback ? import.meta.env.VITE_WEBRTC_PUBLISH_URL || "" : "";
-  const cameraHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_CAMERA || "";
-  const screenHlsUrl = import.meta.env.VITE_HLS_PLAYBACK_URL_SCREEN || "";
-  const cameraPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_CAMERA || "";
-  const screenPublishUrl = import.meta.env.VITE_WEBRTC_PUBLISH_URL_SCREEN || "";
+  const allowSharedInputs =
+    String(import.meta.env.VITE_ALLOW_SHARED_INPUTS || "false").toLowerCase() === "true";
+  const hasCloudflareInputs = Boolean(cloudflareReady);
+  const cameraHlsUrl =
+    allowSharedInputs || hasCloudflareInputs ? import.meta.env.VITE_HLS_PLAYBACK_URL_CAMERA || "" : "";
+  const screenHlsUrl =
+    allowSharedInputs || hasCloudflareInputs ? import.meta.env.VITE_HLS_PLAYBACK_URL_SCREEN || "" : "";
+  const cameraPublishUrl =
+    allowSharedInputs || hasCloudflareInputs ? import.meta.env.VITE_WEBRTC_PUBLISH_URL_CAMERA || "" : "";
+  const screenPublishUrl =
+    allowSharedInputs || hasCloudflareInputs ? import.meta.env.VITE_WEBRTC_PUBLISH_URL_SCREEN || "" : "";
   const resolvedCameraPublishUrl = cameraPublishOverride || cameraPublishUrl;
   const resolvedScreenPublishUrl = screenPublishOverride || screenPublishUrl;
   const registryAddress = String(import.meta.env.VITE_REGISTRY_ADDRESS || "");
@@ -200,7 +208,16 @@ export default function CreatePage(): JSX.Element {
           || nextCameraPlayback;
         if (preferred) setPlaybackUrl(preferred);
       }
+      const ready = Boolean(
+        nextCustomerCode
+        || nextScreenPublish
+        || nextCameraPublish
+        || nextScreenInputId
+        || nextCameraInputId
+      );
+      setCloudflareReady(ready);
     } catch {
+      setCloudflareReady(false);
       // ignore if Cloudflare inputs are not configured
     }
   }

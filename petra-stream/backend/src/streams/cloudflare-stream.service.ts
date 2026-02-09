@@ -182,6 +182,9 @@ export class CloudflareStreamService {
 
     const updates: Record<string, any> = {};
 
+    let createdScreen = false;
+    let createdCamera = false;
+
     if (!screenInputId) {
       const created = await this.createLiveInput(`petra:${normalized}:screen`);
       screenInputId = created?.uid || '';
@@ -195,6 +198,7 @@ export class CloudflareStreamService {
       updates.cloudflareScreenPublishUrl = screenPublishUrl || undefined;
       updates.cloudflareScreenRtmpsUrl = screenRtmpsUrl || undefined;
       updates.cloudflareScreenRtmpsKey = screenRtmpsKey || undefined;
+      createdScreen = true;
     }
 
     if (!cameraInputId) {
@@ -210,6 +214,7 @@ export class CloudflareStreamService {
       updates.cloudflareCameraPublishUrl = cameraPublishUrl || undefined;
       updates.cloudflareCameraRtmpsUrl = cameraRtmpsUrl || undefined;
       updates.cloudflareCameraRtmpsKey = cameraRtmpsKey || undefined;
+      createdCamera = true;
     }
 
     if (customerCode && customerCode !== existing?.cloudflareCustomerCode) {
@@ -238,6 +243,22 @@ export class CloudflareStreamService {
       existing?.cloudflareCustomerCode ||
       this.parseCustomerCode(screenPublishUrl || cameraPublishUrl) ||
       null;
+
+    if (createdScreen || createdCamera) {
+      this.logger.log(
+        `Cloudflare inputs created for ${normalized}: ` +
+        `screen=${createdScreen ? screenInputId || 'unknown' : 'existing'} ` +
+        `camera=${createdCamera ? cameraInputId || 'unknown' : 'existing'} ` +
+        `customer=${finalCustomerCode || 'unknown'}`
+      );
+    } else {
+      this.logger.debug(
+        `Cloudflare inputs reused for ${normalized}: ` +
+        `screen=${screenInputId || 'missing'} ` +
+        `camera=${cameraInputId || 'missing'} ` +
+        `customer=${finalCustomerCode || 'unknown'}`
+      );
+    }
 
     const screenDetails = screenInputId ? await this.getLiveInputDetails(screenInputId).catch(() => null) : null;
     const cameraDetails = cameraInputId ? await this.getLiveInputDetails(cameraInputId).catch(() => null) : null;
