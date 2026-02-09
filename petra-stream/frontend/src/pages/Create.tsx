@@ -49,6 +49,7 @@ export default function CreatePage(): JSX.Element {
   const [showWalletHelp, setShowWalletHelp] = useState(false);
   const [registeringWallet, setRegisteringWallet] = useState(false);
   const [showStudioWarning, setShowStudioWarning] = useState(false);
+  const [waitingForVideo, setWaitingForVideo] = useState(false);
   const [cameraPublishOverride, setCameraPublishOverride] = useState("");
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
@@ -778,6 +779,27 @@ export default function CreatePage(): JSX.Element {
 
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  async function waitForVideoUid(timeoutMs = 30000) {
+    const startedAt = Date.now();
+    setWaitingForVideo(true);
+    try {
+      while (Date.now() - startedAt < timeoutMs) {
+        const inputs = await loadCloudflareInputs();
+        const videoId =
+          sourceMode === "screen"
+            ? (inputs?.screenVideoId || inputs?.cameraVideoId)
+            : (inputs?.cameraVideoId || inputs?.screenVideoId);
+        if (videoId) {
+          return videoId;
+        }
+        await delay(2000);
+      }
+      return "";
+    } finally {
+      setWaitingForVideo(false);
+    }
+  }
+
   async function goLiveInBrowser() {
     const ok = await ensureWalletIfRequired();
     if (!ok) return;
@@ -824,6 +846,7 @@ export default function CreatePage(): JSX.Element {
       toast.error("Insecure publish URL", "Use an https WebRTC publish endpoint for live sites.");
       return;
     }
+    await waitForVideoUid(30000);
     setShowPublisher(true);
     toast.info("Browser studio ready", "Allow camera and mic to go live.", 2200);
   }
@@ -1382,47 +1405,41 @@ export default function CreatePage(): JSX.Element {
                         || extractCustomerCode(playbackUrl)
                         || extractCustomerCode(screenWebrtcPlaybackUrl)
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                      const previewVideoId =
-                        sourceMode === "screen"
-                          ? (screenVideoId || cameraVideoId)
-                          : (cameraVideoId || screenVideoId);
-                      const preferIframe = Boolean(previewVideoId && previewCustomerCode);
-                      if (preferIframe) {
-                        return (
-                          <CloudflareIframePlayer
-                            customerCode={previewCustomerCode}
-                            inputId={previewVideoId}
+                    const previewVideoId =
+                      sourceMode === "screen"
+                        ? (screenVideoId || cameraVideoId)
+                        : (cameraVideoId || screenVideoId);
+                    const useIframe = Boolean(previewVideoId && previewCustomerCode);
+                    if (useIframe) {
+                      return (
+                        <CloudflareIframePlayer
+                          customerCode={previewCustomerCode}
+                          inputId={previewVideoId}
                           title={title || "Broadcast preview"}
                           heightClass="aspect-video"
                           autoplay
-                            muted
-                            controls
-                            preload="auto"
-                          />
-                        );
-                      }
-                      if (!previewSrc && webRtcSrc) {
-                        return (
-                          <WebRTCPlayer
-                            heightClass="aspect-video"
-                            title={title || "Broadcast preview"}
-                            playbackUrl={webRtcSrc}
-                            autoPlay
-                            startMuted
-                          />
-                        );
-                      }
-                      return (
-                        <Player
-                          heightClass="aspect-video"
-                          title={title || "Broadcast preview"}
-                          src={previewSrc}
-                          autoPlay
-                          startMuted
+                          muted
+                          controls
+                          preload="auto"
                         />
                       );
-                    })()
-                  ) : (
+                    }
+                    return (
+                      <div className="aspect-video flex items-center justify-center bg-bg/70">
+                        <div className="text-center px-6">
+                          <div className="text-[10px] uppercase tracking-[0.3em] text-white/50">
+                            Preparing Cloudflare preview
+                          </div>
+                          <div className="mt-2 text-sm text-subtle">
+                            {waitingForVideo
+                              ? "Waiting for Cloudflare video UID..."
+                              : "Start the stream to initialize preview."}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
                     <div className="aspect-video flex items-center justify-center bg-bg/70">
                       <div className="text-center px-6">
                         <div className="text-[10px] uppercase tracking-[0.3em] text-white/50">
