@@ -466,16 +466,10 @@ export default function StreamDetail(): JSX.Element {
     || extractInputId(pipWebrtcSrc)
     || extractInputId(cameraSrc);
   const resolvedMainId =
-    (stream?.sourceMode === "screen"
-      ? (stream?.cloudflareScreenInputId || snapshotScreenInputId)
-      : (stream?.cloudflareCameraInputId || snapshotCameraInputId))
-    || stream?.cloudflareScreenInputId
-    || stream?.cloudflareCameraInputId
-    || snapshotScreenInputId
-    || snapshotCameraInputId;
-  const resolvedPipId =
-    stream?.cloudflareCameraInputId
-    || snapshotCameraInputId;
+    (stream?.sourceMode === "screen" ? snapshotScreenVideoId : snapshotCameraVideoId)
+    || snapshotScreenVideoId
+    || snapshotCameraVideoId;
+  const resolvedPipId = snapshotCameraVideoId;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
   const candidatePlaybackUrl = (mainSrc || playbackSrc || screenSrc || cameraSrc || "").trim();
   const shouldShowPlayer = gateUnlocked && isLive && (playbackReady || !candidatePlaybackUrl);

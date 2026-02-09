@@ -59,6 +59,16 @@ export class CloudflareStreamService {
     return match?.[1] || null;
   }
 
+  private parseVideoId(url?: string) {
+    if (!url) return '';
+    try {
+      const match = url.match(/cloudflarestream\.com\/([^/]+)\//);
+      return match?.[1] || '';
+    } catch {
+      return '';
+    }
+  }
+
   private buildHlsUrl(customerCode: string, inputId: string) {
     if (!customerCode || !inputId) return '';
     const base = `https://customer-${customerCode}.cloudflarestream.com/${inputId}/manifest/video.m3u8`;
@@ -123,17 +133,21 @@ export class CloudflareStreamService {
     const cameraVideoId = cameraInputId ? await this.getLiveInputActiveVideoId(cameraInputId).catch(() => '') : '';
     const screenStatus = screenInputId ? await this.getLiveInputStatus(screenInputId).catch(() => '') : '';
     const cameraStatus = cameraInputId ? await this.getLiveInputStatus(cameraInputId).catch(() => '') : '';
+    const screenDetails = screenInputId ? await this.getLiveInputDetails(screenInputId).catch(() => null) : null;
+    const cameraDetails = cameraInputId ? await this.getLiveInputDetails(cameraInputId).catch(() => null) : null;
+    const screenPlaybackVideo = this.parseVideoId(screenDetails?.webRTCPlayback?.url);
+    const cameraPlaybackVideo = this.parseVideoId(cameraDetails?.webRTCPlayback?.url);
 
     return {
       customerCode,
       screen: {
         inputId: screenInputId || undefined,
-        videoId: screenVideoId || undefined,
+        videoId: (screenVideoId || screenPlaybackVideo) || undefined,
         status: screenStatus || undefined
       },
       camera: {
         inputId: cameraInputId || undefined,
-        videoId: cameraVideoId || undefined,
+        videoId: (cameraVideoId || cameraPlaybackVideo) || undefined,
         status: cameraStatus || undefined
       }
     };
@@ -308,10 +322,12 @@ export class CloudflareStreamService {
     const cameraVideoId = cameraInputId ? await this.getLiveInputActiveVideoId(cameraInputId).catch(() => '') : '';
     const screenStatus = screenInputId ? await this.getLiveInputStatus(screenInputId).catch(() => '') : '';
     const cameraStatus = cameraInputId ? await this.getLiveInputStatus(cameraInputId).catch(() => '') : '';
+    const screenPlaybackVideo = this.parseVideoId(screenDetails?.webRTCPlayback?.url);
+    const cameraPlaybackVideo = this.parseVideoId(cameraDetails?.webRTCPlayback?.url);
 
     const screen: CloudflareInputInfo = {
       inputId: screenInputId,
-      videoId: screenVideoId || undefined,
+      videoId: (screenVideoId || screenPlaybackVideo) || undefined,
       publishUrl: screenPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, screenInputId) : undefined,
       rtmpsUrl: screenRtmpsUrl || undefined,
@@ -322,7 +338,7 @@ export class CloudflareStreamService {
 
     const camera: CloudflareInputInfo = {
       inputId: cameraInputId,
-      videoId: cameraVideoId || undefined,
+      videoId: (cameraVideoId || cameraPlaybackVideo) || undefined,
       publishUrl: cameraPublishUrl || undefined,
       playbackUrl: finalCustomerCode ? this.buildHlsUrl(finalCustomerCode, cameraInputId) : undefined,
       rtmpsUrl: cameraRtmpsUrl || undefined,

@@ -53,6 +53,7 @@ export default function CreatePage(): JSX.Element {
   const [screenInputStatus, setScreenInputStatus] = useState("");
   const [cameraInputStatus, setCameraInputStatus] = useState("");
   const [iframeSeed, setIframeSeed] = useState(0);
+  const pollingVideoRef = useRef(false);
   const [cameraPublishOverride, setCameraPublishOverride] = useState("");
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
@@ -236,6 +237,8 @@ export default function CreatePage(): JSX.Element {
         cameraPublishUrl: nextCameraPublish,
         screenPlaybackUrl: nextScreenPlayback,
         cameraPlaybackUrl: nextCameraPlayback,
+        screenWebrtcPlaybackUrl: nextScreenWebrtcPlayback,
+        cameraWebrtcPlaybackUrl: nextCameraWebrtcPlayback,
         customerCode: nextCustomerCode,
         screenInputId: nextScreenInputId,
         cameraInputId: nextCameraInputId,
@@ -290,13 +293,10 @@ export default function CreatePage(): JSX.Element {
   }, [showPublisher, isLive, screenVideoId, cameraVideoId]);
 
   useEffect(() => {
-    const liveStatuses = new Set(["connected", "live", "live-inprogress"]);
-    const nextScreenLive = liveStatuses.has(screenInputStatus.toLowerCase());
-    const nextCameraLive = liveStatuses.has(cameraInputStatus.toLowerCase());
-    if (nextScreenLive || nextCameraLive) {
-      setIframeSeed((s) => s + 1);
+    if (cameraBroadcasting || screenBroadcasting) {
+      void waitForVideoUid();
     }
-  }, [screenInputStatus, cameraInputStatus]);
+  }, [cameraBroadcasting, screenBroadcasting, sourceMode]);
 
   useEffect(() => {
     if (!isPrepared) return;
@@ -814,6 +814,32 @@ export default function CreatePage(): JSX.Element {
       }
       return "";
     } finally {
+      setWaitingForVideo(false);
+    }
+  }
+
+  async function waitForVideoUid(timeoutMs = 45000) {
+    if (pollingVideoRef.current) return;
+    pollingVideoRef.current = true;
+    const startedAt = Date.now();
+    setWaitingForVideo(true);
+    try {
+      while (Date.now() - startedAt < timeoutMs) {
+        const inputs = await loadCloudflareInputs();
+        const screenPlaybackVideo = extractInputId(inputs?.screenWebrtcPlaybackUrl);
+        const cameraPlaybackVideo = extractInputId(inputs?.cameraWebrtcPlaybackUrl);
+        const videoId =
+          sourceMode === "screen"
+            ? (inputs?.screenVideoId || screenPlaybackVideo || inputs?.cameraVideoId || cameraPlaybackVideo)
+            : (inputs?.cameraVideoId || cameraPlaybackVideo || inputs?.screenVideoId || screenPlaybackVideo);
+        if (videoId) {
+          setIframeSeed((s) => s + 1);
+          return;
+        }
+        await delay(2000);
+      }
+    } finally {
+      pollingVideoRef.current = false;
       setWaitingForVideo(false);
     }
   }
@@ -1425,23 +1451,19 @@ export default function CreatePage(): JSX.Element {
                         || extractCustomerCode(playbackUrl)
                         || extractCustomerCode(screenWebrtcPlaybackUrl)
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                    const previewInputId =
+                    const previewScreenVideo = screenVideoId || extractInputId(screenWebrtcPlaybackUrl);
+                    const previewCameraVideo = cameraVideoId || extractInputId(cameraWebrtcPlaybackUrl);
+                    const previewVideoId =
                       sourceMode === "screen"
-                        ? (screenInputId || cameraInputId)
-                        : (cameraInputId || screenInputId);
-                    const status =
-                      sourceMode === "screen"
-                        ? (screenInputStatus || cameraInputStatus)
-                        : (cameraInputStatus || screenInputStatus);
-                    const liveStatuses = new Set(["connected", "live", "live-inprogress"]);
-                    const isLiveInput = liveStatuses.has(String(status || "").toLowerCase());
-                    const useIframe = Boolean(previewInputId && previewCustomerCode && isLiveInput);
+                        ? (previewScreenVideo || previewCameraVideo)
+                        : (previewCameraVideo || previewScreenVideo);
+                    const useIframe = Boolean(previewVideoId && previewCustomerCode);
                     if (useIframe) {
                       return (
                         <CloudflareIframePlayer
-                          key={`${previewInputId}-${iframeSeed}`}
+                          key={`${previewVideoId}-${iframeSeed}`}
                           customerCode={previewCustomerCode}
-                          inputId={previewInputId}
+                          inputId={previewVideoId}
                           title={title || "Broadcast preview"}
                           heightClass="aspect-video"
                           autoplay
@@ -1459,7 +1481,7 @@ export default function CreatePage(): JSX.Element {
                           </div>
                           <div className="mt-2 text-sm text-subtle">
                             {waitingForVideo
-                              ? "Waiting for Cloudflare inputs..."
+                              ? "Waiting for Cloudflare video UID..."
                               : "Waiting for Cloudflare to start the live feed."}
                           </div>
                         </div>
