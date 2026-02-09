@@ -779,18 +779,18 @@ export default function CreatePage(): JSX.Element {
 
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  async function waitForVideoUid(timeoutMs = 30000) {
+  async function waitForInputIds(timeoutMs = 20000) {
     const startedAt = Date.now();
     setWaitingForVideo(true);
     try {
       while (Date.now() - startedAt < timeoutMs) {
         const inputs = await loadCloudflareInputs();
-        const videoId =
+        const inputId =
           sourceMode === "screen"
-            ? (inputs?.screenVideoId || inputs?.cameraVideoId)
-            : (inputs?.cameraVideoId || inputs?.screenVideoId);
-        if (videoId) {
-          return videoId;
+            ? (inputs?.screenInputId || inputs?.cameraInputId)
+            : (inputs?.cameraInputId || inputs?.screenInputId);
+        if (inputId) {
+          return inputId;
         }
         await delay(2000);
       }
@@ -846,7 +846,7 @@ export default function CreatePage(): JSX.Element {
       toast.error("Insecure publish URL", "Use an https WebRTC publish endpoint for live sites.");
       return;
     }
-    await waitForVideoUid(30000);
+    await waitForInputIds(20000);
     setShowPublisher(true);
     toast.info("Browser studio ready", "Allow camera and mic to go live.", 2200);
   }
@@ -1400,21 +1400,23 @@ export default function CreatePage(): JSX.Element {
                           : (cameraWebrtcPlaybackUrl || screenWebrtcPlaybackUrl);
                       const previewCustomerCode =
                         cloudflareCustomerCode
+                        || extractCustomerCode(screenPublishOverride)
+                        || extractCustomerCode(cameraPublishOverride)
                         || extractCustomerCode(screenPlaybackUrl)
                         || extractCustomerCode(cameraPlaybackUrl)
                         || extractCustomerCode(playbackUrl)
                         || extractCustomerCode(screenWebrtcPlaybackUrl)
                         || extractCustomerCode(cameraWebrtcPlaybackUrl);
-                    const previewVideoId =
+                    const previewInputId =
                       sourceMode === "screen"
-                        ? (screenVideoId || cameraVideoId)
-                        : (cameraVideoId || screenVideoId);
-                    const useIframe = Boolean(previewVideoId && previewCustomerCode);
+                        ? (screenInputId || cameraInputId)
+                        : (cameraInputId || screenInputId);
+                    const useIframe = Boolean(previewInputId && previewCustomerCode);
                     if (useIframe) {
                       return (
                         <CloudflareIframePlayer
                           customerCode={previewCustomerCode}
-                          inputId={previewVideoId}
+                          inputId={previewInputId}
                           title={title || "Broadcast preview"}
                           heightClass="aspect-video"
                           autoplay
@@ -1432,7 +1434,7 @@ export default function CreatePage(): JSX.Element {
                           </div>
                           <div className="mt-2 text-sm text-subtle">
                             {waitingForVideo
-                              ? "Waiting for Cloudflare video UID..."
+                              ? "Waiting for Cloudflare inputs..."
                               : "Start the stream to initialize preview."}
                           </div>
                         </div>

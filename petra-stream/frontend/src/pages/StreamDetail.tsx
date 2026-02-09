@@ -466,10 +466,16 @@ export default function StreamDetail(): JSX.Element {
     || extractInputId(pipWebrtcSrc)
     || extractInputId(cameraSrc);
   const resolvedMainId =
-    (stream?.sourceMode === "screen" ? snapshotScreenVideoId : snapshotCameraVideoId)
-    || snapshotScreenVideoId
-    || snapshotCameraVideoId;
-  const resolvedPipId = snapshotCameraVideoId;
+    (stream?.sourceMode === "screen"
+      ? (stream?.cloudflareScreenInputId || snapshotScreenInputId)
+      : (stream?.cloudflareCameraInputId || snapshotCameraInputId))
+    || stream?.cloudflareScreenInputId
+    || stream?.cloudflareCameraInputId
+    || snapshotScreenInputId
+    || snapshotCameraInputId;
+  const resolvedPipId =
+    stream?.cloudflareCameraInputId
+    || snapshotCameraInputId;
   const posterSrc = stream?.thumbnail ?? fallbackPoster;
   const candidatePlaybackUrl = (mainSrc || playbackSrc || screenSrc || cameraSrc || "").trim();
   const shouldShowPlayer = gateUnlocked && isLive && (playbackReady || !candidatePlaybackUrl);
@@ -739,12 +745,12 @@ export default function StreamDetail(): JSX.Element {
                 {gateUnlocked ? (
                   shouldShowPlayer ? (
                     (() => {
-                      const preferIframe = true;
-                      if (preferIframe && customerCode && resolvedMainId) {
-                        return (
-                          <CloudflareIframePlayer
-                            customerCode={customerCode}
-                            inputId={resolvedMainId}
+                        const preferIframe = true;
+                        if (preferIframe && customerCode && resolvedMainId) {
+                          return (
+                            <CloudflareIframePlayer
+                              customerCode={customerCode}
+                              inputId={resolvedMainId}
                             title={stream.title ?? "Live"}
                             heightClass="aspect-video"
                             autoplay
