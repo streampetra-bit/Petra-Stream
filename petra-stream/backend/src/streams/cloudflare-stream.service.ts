@@ -182,6 +182,43 @@ export class CloudflareStreamService {
 
     const updates: Record<string, any> = {};
 
+    // Guard against accidental reuse of the same Cloudflare inputs across multiple streamers.
+    // If an input ID is already attached to a different streamer, discard it and create a new input.
+    if (screenInputId) {
+      const conflict = await prisma.stream.findFirst({
+        where: {
+          cloudflareScreenInputId: screenInputId,
+          streamId: { not: normalized }
+        }
+      }).catch(() => null);
+      if (conflict) {
+        this.logger.warn(
+          `Cloudflare screen input ${screenInputId} already used by ${conflict.streamId}; creating a new one for ${normalized}`
+        );
+        screenInputId = '';
+        screenPublishUrl = '';
+        screenRtmpsUrl = '';
+        screenRtmpsKey = '';
+      }
+    }
+    if (cameraInputId) {
+      const conflict = await prisma.stream.findFirst({
+        where: {
+          cloudflareCameraInputId: cameraInputId,
+          streamId: { not: normalized }
+        }
+      }).catch(() => null);
+      if (conflict) {
+        this.logger.warn(
+          `Cloudflare camera input ${cameraInputId} already used by ${conflict.streamId}; creating a new one for ${normalized}`
+        );
+        cameraInputId = '';
+        cameraPublishUrl = '';
+        cameraRtmpsUrl = '';
+        cameraRtmpsKey = '';
+      }
+    }
+
     let createdScreen = false;
     let createdCamera = false;
 
