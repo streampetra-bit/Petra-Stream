@@ -4,6 +4,7 @@ import { Interface, encodeBytes32String } from 'ethers';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CloudflareStreamService } from './cloudflare-stream.service';
+import prisma from '../prisma/client';
 
 @Controller('api/streams')
 export class StreamsController {
@@ -14,10 +15,15 @@ export class StreamsController {
   ) {}
 
   @Get('active')
-  findActive(@Query('limit') limit?: string) {
+  async findActive(@Query('limit') limit?: string) {
     const take = Number(limit);
     const bounded = Number.isFinite(take) && take > 0 ? take : 20;
-    return this.streams.findActive(bounded);
+    let active = await this.streams.findActive(bounded);
+    if (!active.length && this.cloudflare.isConfigured()) {
+      await this.syncCloudflareLiveStatus();
+      active = await this.streams.findActive(bounded);
+    }
+    return active;
   }
 
   @Get('related')
@@ -55,10 +61,15 @@ export class StreamsController {
   }
 
   @Get('top')
-  top(@Query('limit') limit?: string) {
+  async top(@Query('limit') limit?: string) {
     const take = Number(limit);
     const bounded = Number.isFinite(take) && take > 0 ? take : 20;
-    return this.streams.findActive(bounded);
+    let active = await this.streams.findActive(bounded);
+    if (!active.length && this.cloudflare.isConfigured()) {
+      await this.syncCloudflareLiveStatus();
+      active = await this.streams.findActive(bounded);
+    }
+    return active;
   }
 
   @Post('playback/check')
@@ -347,6 +358,44 @@ export class StreamsController {
       };
     } catch {
       return body;
+    }
+  }
+
+  private async syncCloudflareLiveStatus() {
+    try {
+      const rows = await prisma.stream.findMany({
+        where: {
+          OR: [
+            { cloudflareScreenInputId: { not: null } },
+            { cloudflareCameraInputId: { not: null } }
+          ]
+        },
+        take: 50
+      });
+
+      const liveStatuses = new Set(['connected', 'live', 'live-inprogress']);
+      for (const row of rows) {
+        const screenId = row.cloudflareScreenInputId || '';
+        const cameraId = row.cloudflareCameraInputId || '';
+        let screenLive = false;
+        let cameraLive = false;
+
+        if (screenId) {
+          const status = await this.cloudflare.getLiveInputStatus(screenId).catch(() => '');
+          screenLive = liveStatuses.has(String(status || '').toLowerCase());
+        }
+        if (cameraId) {
+          const status = await this.cloudflare.getLiveInputStatus(cameraId).catch(() => '');
+          cameraLive = liveStatuses.has(String(status || '').toLowerCase());
+        }
+
+        const nextStatus = screenLive || cameraLive ? 'online' : 'offline';
+        if (row.status === nextStatus) continue;
+        const streamer = row.streamer || row.streamId;
+        await this.streams.updateMeta(streamer, { status: nextStatus });
+      }
+    } catch {
+      // ignore sync failures
     }
   }
 }
