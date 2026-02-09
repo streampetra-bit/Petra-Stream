@@ -68,7 +68,11 @@ export class StreamsService {
     mongo.forEach(m => add(this.mapStream(m)));
     cached.forEach(s => add(s));
 
-    const result = Array.from(merged.values());
+    let result = Array.from(merged.values());
+    const cloudflareEnabled = Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
+    if (cloudflareEnabled) {
+      result = result.filter((stream) => Boolean(stream.cloudflareScreenInputId || stream.cloudflareCameraInputId));
+    }
     if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
       return result.slice(0, limit);
     }

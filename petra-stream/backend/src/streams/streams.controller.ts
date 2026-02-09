@@ -36,7 +36,22 @@ export class StreamsController {
   @Get('inputs')
   async inputs(@Req() req: any) {
     const identity = this.resolveIdentity(req);
-    return this.cloudflare.ensureInputs(identity);
+    const data = await this.cloudflare.ensureInputs(identity);
+    try {
+      const screenStatus = String(data?.screen?.status || '').toLowerCase();
+      const cameraStatus = String(data?.camera?.status || '').toLowerCase();
+      const live =
+        screenStatus === 'connected'
+        || screenStatus === 'live'
+        || screenStatus === 'live-inprogress'
+        || cameraStatus === 'connected'
+        || cameraStatus === 'live'
+        || cameraStatus === 'live-inprogress';
+      await this.streams.updateMeta(identity, { status: live ? 'online' : 'offline' });
+    } catch {
+      // ignore status sync failures
+    }
+    return data;
   }
 
   @Get('top')
