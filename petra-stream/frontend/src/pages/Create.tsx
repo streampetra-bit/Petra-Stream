@@ -50,6 +50,9 @@ export default function CreatePage(): JSX.Element {
   const [registeringWallet, setRegisteringWallet] = useState(false);
   const [showStudioWarning, setShowStudioWarning] = useState(false);
   const [waitingForVideo, setWaitingForVideo] = useState(false);
+  const [screenInputStatus, setScreenInputStatus] = useState("");
+  const [cameraInputStatus, setCameraInputStatus] = useState("");
+  const [iframeSeed, setIframeSeed] = useState(0);
   const [cameraPublishOverride, setCameraPublishOverride] = useState("");
   const [screenPublishOverride, setScreenPublishOverride] = useState("");
   const [cameraWebrtcPlaybackUrl, setCameraWebrtcPlaybackUrl] = useState("");
@@ -192,6 +195,8 @@ export default function CreatePage(): JSX.Element {
       const nextCameraInputId = String(data?.camera?.inputId || "").trim();
       const nextScreenVideoId = String(data?.screen?.videoId || "").trim();
       const nextCameraVideoId = String(data?.camera?.videoId || "").trim();
+      const nextScreenStatus = String(data?.screen?.status || "").trim();
+      const nextCameraStatus = String(data?.camera?.status || "").trim();
 
       if (nextScreenPlayback) {
         setScreenPlaybackUrl(nextScreenPlayback);
@@ -208,6 +213,8 @@ export default function CreatePage(): JSX.Element {
       if (nextCameraInputId) setCameraInputId(nextCameraInputId);
       if (nextScreenVideoId) setScreenVideoId(nextScreenVideoId);
       if (nextCameraVideoId) setCameraVideoId(nextCameraVideoId);
+      if (nextScreenStatus) setScreenInputStatus(nextScreenStatus);
+      if (nextCameraStatus) setCameraInputStatus(nextCameraStatus);
 
       if (nextScreenPlayback || nextCameraPlayback) {
         const preferred = (sourceMode === "screen" ? nextScreenPlayback : nextCameraPlayback)
@@ -233,7 +240,9 @@ export default function CreatePage(): JSX.Element {
         screenInputId: nextScreenInputId,
         cameraInputId: nextCameraInputId,
         screenVideoId: nextScreenVideoId,
-        cameraVideoId: nextCameraVideoId
+        cameraVideoId: nextCameraVideoId,
+        screenStatus: nextScreenStatus,
+        cameraStatus: nextCameraStatus
       };
     } catch {
       setCloudflareReady(false);
@@ -279,6 +288,15 @@ export default function CreatePage(): JSX.Element {
       window.clearInterval(timer);
     };
   }, [showPublisher, isLive, screenVideoId, cameraVideoId]);
+
+  useEffect(() => {
+    const liveStatuses = new Set(["connected", "live", "live-inprogress"]);
+    const nextScreenLive = liveStatuses.has(screenInputStatus.toLowerCase());
+    const nextCameraLive = liveStatuses.has(cameraInputStatus.toLowerCase());
+    if (nextScreenLive || nextCameraLive) {
+      setIframeSeed((s) => s + 1);
+    }
+  }, [screenInputStatus, cameraInputStatus]);
 
   useEffect(() => {
     if (!isPrepared) return;
@@ -1411,10 +1429,17 @@ export default function CreatePage(): JSX.Element {
                       sourceMode === "screen"
                         ? (screenInputId || cameraInputId)
                         : (cameraInputId || screenInputId);
-                    const useIframe = Boolean(previewInputId && previewCustomerCode);
+                    const status =
+                      sourceMode === "screen"
+                        ? (screenInputStatus || cameraInputStatus)
+                        : (cameraInputStatus || screenInputStatus);
+                    const liveStatuses = new Set(["connected", "live", "live-inprogress"]);
+                    const isLiveInput = liveStatuses.has(String(status || "").toLowerCase());
+                    const useIframe = Boolean(previewInputId && previewCustomerCode && isLiveInput);
                     if (useIframe) {
                       return (
                         <CloudflareIframePlayer
+                          key={`${previewInputId}-${iframeSeed}`}
                           customerCode={previewCustomerCode}
                           inputId={previewInputId}
                           title={title || "Broadcast preview"}
@@ -1435,7 +1460,7 @@ export default function CreatePage(): JSX.Element {
                           <div className="mt-2 text-sm text-subtle">
                             {waitingForVideo
                               ? "Waiting for Cloudflare inputs..."
-                              : "Start the stream to initialize preview."}
+                              : "Waiting for Cloudflare to start the live feed."}
                           </div>
                         </div>
                       </div>
